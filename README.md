@@ -1,13 +1,13 @@
 # Colorini
 
-Water sort **rogue-like** hardcore (HTML/CSS/JS).
+Water sort **rogue-like** (HTML/CSS/JS).
 
 ## Spedizione
 
-- **Limite mosse** per piano (finirle = morte)
-- **1 vita** → morte torna al piano 1, **reliquie tenute** fino al clear
-- Reliquie basate sulle mosse; clear stretti = bottino migliore
-- 12 piani, 1 vuoto presto, boss finale 12 colori / 36 mosse
+- Palette a **12 colori distinti**
+- Mosse = **soluzione calcolata dal solver + 2** ( +3 al piano 1 )
+- 1 vita; morte → piano 1 con reliquie tenute fino al clear
+- Reliquie basate sul budget mosse / efficienza del clear
 
 ## Archivio
 
