@@ -2,42 +2,79 @@
   "use strict";
 
   const LEVELS = window.COLORINI_LEVELS;
-  const STORAGE_KEY = "colorini-progress";
+  const Proc = window.ColoriniProcgen;
+  const Rogue = window.ColoriniRogue;
+  const Music = window.ColoriniMusic;
+
+  const STORAGE_ARCHIVE = "colorini-progress";
+  const STORAGE_BEST = "colorini-best-run";
+  const STORAGE_MODE = "colorini-mode";
 
   const rack = document.getElementById("rack");
   const hint = document.getElementById("hint");
   const levelLabel = document.getElementById("levelLabel");
+  const levelName = document.getElementById("levelName");
+  const brandTag = document.getElementById("brandTag");
   const btnUndo = document.getElementById("btnUndo");
   const btnRestart = document.getElementById("btnRestart");
+  const restartLabel = document.getElementById("restartLabel");
   const btnPrev = document.getElementById("btnPrev");
   const btnNext = document.getElementById("btnNext");
+  const btnHint = document.getElementById("btnHint");
+  const btnMode = document.getElementById("btnMode");
+  const archiveNav = document.getElementById("archiveNav");
+  const hud = document.getElementById("hud");
+  const hudHearts = document.getElementById("hudHearts");
+  const hudUndos = document.getElementById("hudUndos");
+  const hudScore = document.getElementById("hudScore");
+  const hudRelics = document.getElementById("hudRelics");
+
   const winOverlay = document.getElementById("winOverlay");
+  const winKicker = document.getElementById("winKicker");
+  const winTitle = document.getElementById("winTitle");
   const winText = document.getElementById("winText");
   const btnReplay = document.getElementById("btnReplay");
   const btnContinue = document.getElementById("btnContinue");
-  const levelName = document.getElementById("levelName");
-  const btnMusic = document.getElementById("btnMusic");
-  const Music = window.ColoriniMusic;
 
-  /** @type {{ capacity: number, bottles: string[][], selected: number|null, history: string[][][], busy: boolean, levelIndex: number }} */
+  const titleOverlay = document.getElementById("titleOverlay");
+  const bestRunEl = document.getElementById("bestRun");
+  const btnNewRun = document.getElementById("btnNewRun");
+  const btnOpenArchive = document.getElementById("btnOpenArchive");
+
+  const relicOverlay = document.getElementById("relicOverlay");
+  const relicGrid = document.getElementById("relicGrid");
+
+  const runOverlay = document.getElementById("runOverlay");
+  const runKicker = document.getElementById("runKicker");
+  const runTitle = document.getElementById("runTitle");
+  const runText = document.getElementById("runText");
+  const btnRunAgain = document.getElementById("btnRunAgain");
+  const btnRunTitle = document.getElementById("btnRunTitle");
+
+  const btnMusic = document.getElementById("btnMusic");
+
   const state = {
+    mode: "rogue", // 'rogue' | 'archive'
     capacity: 4,
     bottles: [],
+    startBottles: [],
     selected: null,
     history: [],
     busy: false,
     levelIndex: 0,
+    run: null,
+    floorRng: null,
+    puzzleMeta: null,
+    blocked: false,
   };
 
   function cloneBottles(bottles) {
     return bottles.map((b) => b.slice());
   }
 
-  function loadProgress() {
+  function loadArchiveProgress() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return 0;
-      const n = Number(raw);
+      const n = Number(localStorage.getItem(STORAGE_ARCHIVE));
       if (!Number.isFinite(n) || n < 0) return 0;
       return Math.min(Math.floor(n), LEVELS.length - 1);
     } catch {
@@ -45,12 +82,43 @@
     }
   }
 
-  function saveProgress(index) {
+  function saveArchiveProgress(index) {
     try {
-      const prev = loadProgress();
-      if (index > prev) localStorage.setItem(STORAGE_KEY, String(index));
+      const prev = loadArchiveProgress();
+      if (index > prev) localStorage.setItem(STORAGE_ARCHIVE, String(index));
     } catch {
       /* ignore */
+    }
+  }
+
+  function loadBest() {
+    try {
+      const raw = localStorage.getItem(STORAGE_BEST);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  function saveBest(run) {
+    const prev = loadBest();
+    const next = {
+      floors: run.floorsCleared,
+      score: run.score,
+      won: run.won,
+    };
+    if (
+      !prev ||
+      next.floors > prev.floors ||
+      (next.floors === prev.floors && next.score > prev.score) ||
+      (next.won && !prev.won)
+    ) {
+      try {
+        localStorage.setItem(STORAGE_BEST, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
     }
   }
 
@@ -87,9 +155,7 @@
   function pourAmount(from, to, capacity) {
     const src = state.bottles[from];
     const dst = state.bottles[to];
-    const free = spaceLeft(dst, capacity);
-    const run = topRunLength(src);
-    return Math.min(free, run);
+    return Math.min(spaceLeft(dst, capacity), topRunLength(src));
   }
 
   function isSolved(bottles, capacity) {
@@ -101,6 +167,17 @@
     });
   }
 
+  function findHintMove() {
+    for (let i = 0; i < state.bottles.length; i++) {
+      for (let j = 0; j < state.bottles.length; j++) {
+        if (!canPour(i, j, state.capacity)) continue;
+        // Prefer pouring into non-empty matching, or emptying toward sorting
+        return [i, j];
+      }
+    }
+    return null;
+  }
+
   function setHint(text, pulse) {
     hint.textContent = text;
     if (pulse) {
@@ -110,14 +187,84 @@
     }
   }
 
+  function anyOverlayOpen() {
+    return (
+      !titleOverlay.hidden ||
+      !winOverlay.hidden ||
+      !relicOverlay.hidden ||
+      !runOverlay.hidden
+    );
+  }
+
+  function hideOverlays() {
+    titleOverlay.hidden = true;
+    winOverlay.hidden = true;
+    relicOverlay.hidden = true;
+    runOverlay.hidden = true;
+  }
+
+  function renderHearts() {
+    if (!state.run) {
+      hudHearts.replaceChildren();
+      return;
+    }
+    hudHearts.replaceChildren();
+    for (let i = 0; i < state.run.maxHp; i++) {
+      const s = document.createElement("span");
+      s.className = "heart" + (i < state.run.hp ? " on" : " off");
+      s.textContent = "♥";
+      hudHearts.appendChild(s);
+    }
+  }
+
+  function renderRelicHud() {
+    hudRelics.replaceChildren();
+    if (!state.run) return;
+    state.run.relics.forEach((id) => {
+      const r = Rogue.RELICS[id];
+      if (!r) return;
+      const chip = document.createElement("span");
+      chip.className = "relic-chip rarity-" + r.rarity;
+      chip.title = r.name + " — " + r.desc;
+      chip.textContent = r.name.split(" ")[0];
+      hudRelics.appendChild(chip);
+    });
+  }
+
   function updateChrome() {
-    const level = LEVELS[state.levelIndex];
-    levelLabel.textContent = `Livello ${state.levelIndex + 1}`;
-    if (levelName) levelName.textContent = level.name;
-    btnUndo.disabled = state.busy || state.history.length === 0;
+    const rogue = state.mode === "rogue";
+    hud.hidden = !rogue || !state.run;
+    archiveNav.hidden = rogue;
+    btnMode.textContent = rogue ? "Archivio" : "Spedizione";
+    brandTag.textContent = rogue ? "water sort · rogue" : "water sort · archivio";
+
+    if (rogue && state.run) {
+      const floor = state.run.floor + 1;
+      levelLabel.textContent = `Piano ${floor}/${state.run.totalFloors}`;
+      levelName.textContent = state.puzzleMeta
+        ? state.puzzleMeta.name + (state.puzzleMeta.isBoss ? " ⚔" : "")
+        : "Spedizione";
+      hudUndos.textContent = String(state.run.undosLeft);
+      hudScore.textContent = String(state.run.score);
+      renderHearts();
+      renderRelicHud();
+      restartLabel.textContent =
+        state.run.freeRestarts > 0 ? "Free" : "♥ Restart";
+      btnHint.hidden = !(state.run.hintsLeft > 0);
+      btnUndo.disabled =
+        state.busy || state.history.length === 0 || state.run.undosLeft <= 0;
+    } else {
+      const level = LEVELS[state.levelIndex];
+      levelLabel.textContent = `Livello ${state.levelIndex + 1}`;
+      if (levelName) levelName.textContent = level ? level.name : "";
+      restartLabel.textContent = "Restart";
+      btnHint.hidden = true;
+      btnUndo.disabled = state.busy || state.history.length === 0;
+      btnPrev.disabled = state.busy || state.levelIndex === 0;
+      btnNext.disabled = state.busy || state.levelIndex >= LEVELS.length - 1;
+    }
+
     btnRestart.disabled = state.busy;
-    btnPrev.disabled = state.busy || state.levelIndex === 0;
-    btnNext.disabled = state.busy || state.levelIndex >= LEVELS.length - 1;
   }
 
   function syncMusicButton() {
@@ -144,16 +291,13 @@
         ? `Bottiglia ${index + 1}, ${bottle.length} unità`
         : `Bottiglia ${index + 1}, vuota`
     );
-
     if (state.selected === index) btn.classList.add("selected");
 
     const neck = document.createElement("span");
     neck.className = "bottle-neck";
     neck.setAttribute("aria-hidden", "true");
-
     const glass = document.createElement("span");
     glass.className = "bottle-glass";
-
     const liquid = document.createElement("span");
     liquid.className = "bottle-liquid";
 
@@ -178,17 +322,77 @@
     updateChrome();
   }
 
-  function loadLevel(index, { keepHistory } = {}) {
-    const level = LEVELS[index];
-    state.levelIndex = index;
-    state.capacity = level.capacity || 4;
-    state.bottles = cloneBottles(level.bottles);
+  function loadPuzzle(bottles, capacity, meta) {
+    state.capacity = capacity;
+    state.bottles = cloneBottles(bottles);
+    state.startBottles = cloneBottles(bottles);
+    state.puzzleMeta = meta || null;
     state.selected = null;
-    if (!keepHistory) state.history = [];
+    state.history = [];
     state.busy = false;
-    winOverlay.hidden = true;
+    hideOverlays();
     setHint("Tocca una bottiglia, poi dove versare.");
     render();
+  }
+
+  function loadArchiveLevel(index) {
+    const level = LEVELS[index];
+    state.mode = "archive";
+    state.levelIndex = index;
+    state.run = null;
+    loadPuzzle(level.bottles, level.capacity || 4, { name: level.name });
+    try {
+      localStorage.setItem(STORAGE_MODE, "archive");
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function startFloor() {
+    const run = state.run;
+    const spec = Proc.floorSpec(run.floor, run.totalFloors);
+    Rogue.prepareFloorCharges(run, spec.isBoss);
+    const rng = Proc.mulberry32((run.seed ^ (run.floor * 2654435761)) >>> 0);
+    state.floorRng = rng;
+    const extraEmpty = Rogue.emptyBonus(run);
+    const puzzle = Proc.generatePuzzle(rng, {
+      colors: spec.colors,
+      empty: spec.empty + extraEmpty,
+      scramble: spec.scramble,
+      capacity: spec.capacity,
+      preSorted: Rogue.preSortedBonus(run),
+      name: spec.name,
+      isBoss: spec.isBoss,
+    });
+    puzzle.isBoss = spec.isBoss;
+    state.mode = "rogue";
+    loadPuzzle(puzzle.bottles, puzzle.capacity, puzzle);
+    if (spec.isBoss) setHint("Boss: concentra i colori. Undo contati!", true);
+  }
+
+  function beginRun() {
+    state.run = Rogue.createRun(String(Date.now()));
+    state.mode = "rogue";
+    try {
+      localStorage.setItem(STORAGE_MODE, "rogue");
+    } catch {
+      /* ignore */
+    }
+    startFloor();
+  }
+
+  function showTitle() {
+    hideOverlays();
+    const best = loadBest();
+    if (best) {
+      bestRunEl.textContent = best.won
+        ? `Record: vittoria · ${best.score} pt`
+        : `Record: piano ${best.floors}/${Rogue.TOTAL_FLOORS} · ${best.score} pt`;
+    } else {
+      bestRunEl.textContent = "Record: ancora nessuna spedizione";
+    }
+    titleOverlay.hidden = false;
+    state.blocked = true;
   }
 
   function pushHistory() {
@@ -197,16 +401,70 @@
 
   function undo() {
     if (state.busy || !state.history.length) return;
+    if (state.mode === "rogue") {
+      if (!state.run || state.run.undosLeft <= 0) {
+        setHint("Undo esauriti!", true);
+        return;
+      }
+      state.run.undosLeft -= 1;
+    }
     state.bottles = state.history.pop();
     state.selected = null;
     setHint("Mossa annullata.", true);
     render();
   }
 
-  function restart() {
+  function restartPuzzle() {
     if (state.busy) return;
-    loadLevel(state.levelIndex);
+
+    if (state.mode === "rogue" && state.run) {
+      if (state.run.freeRestarts > 0) {
+        state.run.freeRestarts -= 1;
+        state.bottles = cloneBottles(state.startBottles);
+        state.history = [];
+        state.selected = null;
+        Rogue.prepareFloorCharges(state.run, !!(state.puzzleMeta && state.puzzleMeta.isBoss));
+        // keep free restart consumed
+        state.run.freeRestarts = 0;
+        setHint("Ricomincia gratis usato.", true);
+        render();
+        return;
+      }
+      const result = Rogue.loseHp(state.run, 1);
+      if (result.secondWind) {
+        setHint("Secondo soffio! Torni con 1 ♥.", true);
+      }
+      if (result.dead) {
+        render();
+        endRun(false);
+        return;
+      }
+      state.bottles = cloneBottles(state.startBottles);
+      state.history = [];
+      state.selected = null;
+      // Refresh undos on paid restart (harsh but clear)
+      Rogue.prepareFloorCharges(state.run, !!(state.puzzleMeta && state.puzzleMeta.isBoss));
+      state.run.freeRestarts = 0;
+      setHint("Piano rifatto (−1 ♥).", true);
+      render();
+      return;
+    }
+
+    loadArchiveLevel(state.levelIndex);
     setHint("Livello ricominciato.", true);
+  }
+
+  function useHint() {
+    if (state.mode !== "rogue" || !state.run || state.run.hintsLeft <= 0) return;
+    const move = findHintMove();
+    if (!move) {
+      setHint("Nessuna mossa ovvia.", true);
+      return;
+    }
+    state.run.hintsLeft -= 1;
+    state.selected = move[0];
+    setHint(`Prova bottiglia ${move[0] + 1} → ${move[1] + 1}.`, true);
+    render();
   }
 
   function sleep(ms) {
@@ -214,7 +472,10 @@
   }
 
   function colorCssVar(color) {
-    return getComputedStyle(document.documentElement).getPropertyValue(`--c-${color}`).trim() || color;
+    return (
+      getComputedStyle(document.documentElement).getPropertyValue(`--c-${color}`).trim() ||
+      color
+    );
   }
 
   function paintBottleLiquid(bottleEl, contents) {
@@ -268,7 +529,6 @@
 
     await sleep(160);
 
-    // Transfer one unit at a time for a cascading pour feel
     const src = state.bottles[fromIdx];
     const dst = state.bottles[toIdx];
     for (let i = 0; i < amount; i++) {
@@ -284,9 +544,7 @@
     fromEl.style.setProperty("--untilt-from", pourRight ? "72deg" : "-72deg");
     fromEl.classList.remove(tiltClass);
     fromEl.classList.add("untilt");
-
     await sleep(300);
-
     fromEl.classList.remove("pouring-source", "untilt");
     toEl.classList.remove("pouring-target");
     fromEl.style.removeProperty("--untilt-from");
@@ -308,7 +566,6 @@
     updateChrome();
     setHint("Verso…");
 
-    // Prefers-reduced-motion: skip animation
     const reduce =
       window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -331,25 +588,91 @@
   }
 
   function onWin() {
-    saveProgress(state.levelIndex + 1);
+    rack.querySelectorAll(".bottle").forEach((el, i) => {
+      if (state.bottles[i].length) el.classList.add("celebrate");
+    });
+
+    if (state.mode === "rogue" && state.run) {
+      const gained = Rogue.floorScore(
+        state.run.undosLeft,
+        state.run.undosFloorBase,
+        state.run.hp
+      );
+      state.run.score += gained;
+      state.run.floorsCleared += 1;
+
+      winKicker.textContent = state.puzzleMeta && state.puzzleMeta.isBoss ? "Boss sconfitto" : "Piano netto";
+      winTitle.textContent = "Colori in ordine!";
+      winText.textContent = `+${gained} pt · Totale ${state.run.score}.`;
+      btnReplay.hidden = true;
+      btnContinue.textContent =
+        state.run.floor >= state.run.totalFloors - 1 ? "Bottino finale" : "Scegli reliquia";
+      winOverlay.hidden = false;
+      updateChrome();
+      return;
+    }
+
+    saveArchiveProgress(state.levelIndex + 1);
     const level = LEVELS[state.levelIndex];
     const isLast = state.levelIndex >= LEVELS.length - 1;
+    winKicker.textContent = "Completato";
+    winTitle.textContent = "Colori in ordine!";
     winText.textContent = isLast
-      ? `Hai completato tutti i ${LEVELS.length} livelli. Bravo!`
-      : `«${level.name}» risolto. Continua con il successivo.`;
+      ? `Hai completato tutti i ${LEVELS.length} livelli.`
+      : `«${level.name}» risolto.`;
+    btnReplay.hidden = false;
     btnContinue.textContent = isLast ? "Dal primo" : "Avanti";
     winOverlay.hidden = false;
+    updateChrome();
+  }
 
-    rack.querySelectorAll(".bottle").forEach((el, i) => {
-      if (state.bottles[i].length) {
-        el.classList.add("celebrate");
-      }
+  function openRelicPick() {
+    winOverlay.hidden = true;
+    const run = state.run;
+    if (run.floor >= run.totalFloors - 1) {
+      endRun(true);
+      return;
+    }
+    const rng = Proc.mulberry32((run.seed ^ ((run.floor + 99) * 1597334677)) >>> 0);
+    const offers = Rogue.pickRelicOffers(run, rng, 3);
+    relicGrid.replaceChildren();
+    offers.forEach((relic) => {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "relic-card rarity-" + relic.rarity;
+      card.innerHTML =
+        `<span class="relic-rarity">${relic.rarity}</span>` +
+        `<strong>${relic.name}</strong>` +
+        `<span class="relic-desc">${relic.desc}</span>`;
+      card.addEventListener("click", () => {
+        Rogue.applyRelicPickup(run, relic.id);
+        run.floor += 1;
+        relicOverlay.hidden = true;
+        startFloor();
+      });
+      relicGrid.appendChild(card);
     });
+    relicOverlay.hidden = false;
+  }
+
+  function endRun(won) {
+    const run = state.run;
+    if (!run) return;
+    run.won = won;
+    run.alive = won;
+    saveBest(run);
+    hideOverlays();
+    runKicker.textContent = won ? "Vittoria" : "Game over";
+    runTitle.textContent = won ? "Spedizione compiuta!" : "Le vite sono finite";
+    runText.textContent = won
+      ? `Hai superato ${run.totalFloors} piani con ${run.score} punti e ${run.relics.length} reliquie.`
+      : `Arrivato al piano ${run.floorsCleared}/${run.totalFloors}. Punteggio: ${run.score}.`;
+    runOverlay.hidden = false;
     updateChrome();
   }
 
   function onBottleTap(index) {
-    if (state.busy || !winOverlay.hidden) return;
+    if (state.busy || anyOverlayOpen()) return;
 
     if (state.selected === null) {
       if (!state.bottles[index].length) {
@@ -373,39 +696,71 @@
   }
 
   function goLevel(delta) {
-    if (state.busy) return;
+    if (state.mode !== "archive" || state.busy) return;
     const next = state.levelIndex + delta;
     if (next < 0 || next >= LEVELS.length) return;
-    loadLevel(next);
+    loadArchiveLevel(next);
   }
 
+  // —— Events ——
   btnUndo.addEventListener("click", undo);
-  btnRestart.addEventListener("click", restart);
+  btnRestart.addEventListener("click", restartPuzzle);
+  btnHint.addEventListener("click", useHint);
   btnPrev.addEventListener("click", () => goLevel(-1));
   btnNext.addEventListener("click", () => goLevel(1));
+
   btnReplay.addEventListener("click", () => {
     winOverlay.hidden = true;
-    loadLevel(state.levelIndex);
+    if (state.mode === "archive") loadArchiveLevel(state.levelIndex);
   });
+
   btnContinue.addEventListener("click", () => {
-    winOverlay.hidden = true;
-    if (state.levelIndex >= LEVELS.length - 1) {
-      loadLevel(0);
-    } else {
-      loadLevel(state.levelIndex + 1);
+    if (state.mode === "rogue") {
+      openRelicPick();
+      return;
     }
+    winOverlay.hidden = true;
+    if (state.levelIndex >= LEVELS.length - 1) loadArchiveLevel(0);
+    else loadArchiveLevel(state.levelIndex + 1);
+  });
+
+  btnNewRun.addEventListener("click", () => {
+    titleOverlay.hidden = true;
+    beginRun();
+  });
+
+  btnOpenArchive.addEventListener("click", () => {
+    titleOverlay.hidden = true;
+    loadArchiveLevel(loadArchiveProgress());
+  });
+
+  btnMode.addEventListener("click", () => {
+    if (state.busy) return;
+    if (state.mode === "rogue") {
+      loadArchiveLevel(loadArchiveProgress());
+    } else {
+      showTitle();
+    }
+  });
+
+  btnRunAgain.addEventListener("click", () => {
+    runOverlay.hidden = true;
+    beginRun();
+  });
+
+  btnRunTitle.addEventListener("click", () => {
+    runOverlay.hidden = true;
+    showTitle();
   });
 
   if (btnMusic && Music) {
     syncMusicButton();
     btnMusic.addEventListener("click", async () => {
-      const next = !Music.isEnabled();
-      await Music.setEnabled(next);
+      await Music.setEnabled(!Music.isEnabled());
       syncMusicButton();
     });
   }
 
-  // Unlock audio context on first interaction if music was previously enabled
   const unlockOnce = () => {
     if (Music) Music.unlockAndMaybePlay();
     window.removeEventListener("pointerdown", unlockOnce);
@@ -413,7 +768,7 @@
   window.addEventListener("pointerdown", unlockOnce);
 
   winOverlay.addEventListener("click", (e) => {
-    if (e.target === winOverlay) {
+    if (e.target === winOverlay && state.mode === "archive") {
       winOverlay.hidden = true;
       updateChrome();
     }
@@ -425,7 +780,13 @@
       e.preventDefault();
       undo();
     } else if (e.key === "Escape") {
-      if (!winOverlay.hidden) {
+      if (!titleOverlay.hidden) return;
+      if (!runOverlay.hidden) {
+        runOverlay.hidden = true;
+        showTitle();
+      } else if (!relicOverlay.hidden) {
+        /* must pick */
+      } else if (!winOverlay.hidden && state.mode === "archive") {
         winOverlay.hidden = true;
       } else if (state.selected !== null) {
         state.selected = null;
@@ -435,7 +796,10 @@
     }
   });
 
-  // Start at saved progress or level 0
-  const start = loadProgress();
-  loadLevel(start);
+  // Boot: title screen for rogue-first experience
+  showTitle();
+  // Keep a quiet empty rack behind the title
+  state.bottles = [];
+  render();
+  updateChrome();
 })();

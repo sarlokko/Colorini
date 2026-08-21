@@ -1,26 +1,32 @@
 # Colorini
 
-Puzzle **water sort** in puro HTML/CSS/JS — clone web di Magic Sort.
+Puzzle **water sort** con modalità **rogue-like**, in puro HTML/CSS/JS.
 
 ## Gioca
 
-Apri `index.html` in un browser, oppure usa GitHub Pages dopo il deploy.
+Apri `index.html` oppure GitHub Pages.
 
-## Come si gioca
+## Modalità
 
-1. Tocca una bottiglia di origine
-2. Tocca la destinazione per versare
-3. Si versa solo se il colore in cima coincide e c’è spazio
-4. Vittoria: ogni bottiglia è piena di un solo colore, oppure vuota
+### Spedizione (rogue)
+- 8 piani procedurali che scalano di difficoltà
+- Vite: ricominciare un piano costa ♥ (game over a 0)
+- Undo limitati per piano
+- Dopo ogni piano scegli una **reliquia**
+- Mini-boss a metà run, boss finale all’ultimo piano
 
-Controlli: **Undo**, **Restart**, navigazione livelli, **musica** (pulsante in alto a destra).
+### Archivio
+I livelli classici fissi, con undo illimitati e navigazione libera.
 
-La colonna sonora è generata in browser (Web Audio), senza file audio esterni.
+## Controlli
+
+Undo, Restart, Hint (se hai la reliquia), musica, switch modalità.
+
+La colonna sonora è generata in browser (Web Audio).
 
 ## GitHub Pages
 
-In *Settings → Pages* scegli la branch `main` e la cartella `/ (root)`.
-Il sito sarà disponibile su `https://<utente>.github.io/<repo>/`.
+In *Settings → Pages* scegli branch `main` e cartella `/ (root)`.
 
 ## Struttura
 
@@ -28,5 +34,8 @@ Il sito sarà disponibile su `https://<utente>.github.io/<repo>/`.
 index.html
 css/styles.css
 js/levels.js
+js/procgen.js
+js/rogue.js
+js/music.js
 js/game.js
 ```

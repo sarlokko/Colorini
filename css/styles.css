@@ -625,6 +625,159 @@ body {
   flex: 1;
 }
 
+.modal-wide {
+  width: min(100%, 440px);
+}
+
+.modal-actions-stack {
+  flex-direction: column;
+}
+
+.modal-actions-stack .btn {
+  flex: none;
+  width: 100%;
+}
+
+.best-run {
+  margin: -0.5rem 0 1.1rem;
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: var(--brand-deep);
+}
+
+.hud {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem 0.85rem;
+  max-width: 720px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0.35rem 1rem 0;
+}
+
+.hud[hidden] {
+  display: none;
+}
+
+.hud-hearts {
+  display: flex;
+  gap: 0.15rem;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.heart.on {
+  color: #e11d48;
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.4));
+}
+
+.heart.off {
+  color: rgba(26, 63, 74, 0.22);
+}
+
+.hud-stat {
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: var(--ink);
+  background: var(--glass-strong);
+  border: 1px solid var(--stroke);
+  border-radius: 999px;
+  padding: 0.28rem 0.7rem;
+  backdrop-filter: blur(8px);
+}
+
+.hud-label {
+  color: var(--ink-soft);
+  font-weight: 700;
+  margin-right: 0.2rem;
+}
+
+.hud-relics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  justify-content: center;
+  max-width: 100%;
+}
+
+.relic-chip {
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 0.22rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid var(--stroke);
+  color: var(--brand-deep);
+  white-space: nowrap;
+}
+
+.relic-chip.rarity-rare {
+  border-color: rgba(14, 165, 233, 0.45);
+  color: #0369a1;
+}
+
+.relic-chip.rarity-legendary {
+  border-color: rgba(245, 158, 11, 0.55);
+  color: #b45309;
+}
+
+.relic-grid {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.25rem;
+}
+
+.relic-card {
+  font-family: inherit;
+  text-align: left;
+  border: 1px solid var(--stroke);
+  background: #fff;
+  border-radius: 16px;
+  padding: 0.85rem 1rem;
+  cursor: pointer;
+  display: grid;
+  gap: 0.2rem;
+  transition: transform 0.2s var(--ease-spring), box-shadow 0.2s ease;
+}
+
+.relic-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(26, 63, 74, 0.12);
+}
+
+.relic-card.rarity-rare {
+  background: linear-gradient(165deg, #fff 0%, #e0f5ff 100%);
+}
+
+.relic-card.rarity-legendary {
+  background: linear-gradient(165deg, #fff 0%, #fff3d6 100%);
+}
+
+.relic-rarity {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.relic-card strong {
+  font-size: 1rem;
+  color: var(--ink);
+}
+
+.relic-desc {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.level-nav[hidden] {
+  display: none;
+}
+
 /* Pour tilt animations driven by JS classes */
 .bottle.tilt-left {
   animation: tilt-left 0.5s var(--ease-out) forwards;
@@ -682,6 +835,16 @@ body {
 
   .btn-ghost {
     padding: 0.7rem 0.85rem;
+  }
+
+  #btnMode,
+  #restartLabel {
+    display: inline;
+    font-size: 0.75rem;
+  }
+
+  .hud {
+    gap: 0.4rem 0.55rem;
   }
 }
 

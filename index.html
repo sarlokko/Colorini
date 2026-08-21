@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="description" content="Colorini — ordina i colori nelle bottigliette. Puzzle water sort gratis." />
+  <meta name="description" content="Colorini — water sort rogue-like: spedizioni, vite, reliquie e piani procedurali." />
   <meta name="theme-color" content="#1f8a9a" />
-  <title>Colorini — Water Sort</title>
+  <title>Colorini — Water Sort Rogue</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@500;600;700;800&display=swap" rel="stylesheet" />
@@ -25,7 +25,7 @@
       <h1 class="brand-name" aria-label="Colorini">
         <span class="letter" style="--i:0">C</span><span class="letter" style="--i:1">o</span><span class="letter" style="--i:2">l</span><span class="letter" style="--i:3">o</span><span class="letter" style="--i:4">r</span><span class="letter" style="--i:5">i</span><span class="letter" style="--i:6">n</span><span class="letter" style="--i:7">i</span>
       </h1>
-      <p class="brand-tag">water sort · ordina i colori</p>
+      <p class="brand-tag" id="brandTag">water sort · rogue</p>
     </div>
     <div class="top-actions">
       <button type="button" class="btn btn-music" id="btnMusic" aria-label="Attiva musica" aria-pressed="false" title="Musica">
@@ -33,11 +33,18 @@
         <svg class="icon-music-off" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" hidden><path fill="currentColor" d="M4.27 3 3 4.27 9.73 11H9v6.55A4 4 0 1 0 11 21V13.27L19.73 22 21 20.73 4.27 3zM14 7h4V3h-6v4.18l2 2V7z"/></svg>
       </button>
       <div class="level-meta">
-        <p class="level-chip" id="levelLabel">Livello 1</p>
-        <p class="level-name" id="levelName">Primi passi</p>
+        <p class="level-chip" id="levelLabel">Piano 1/8</p>
+        <p class="level-name" id="levelName">Spedizione</p>
       </div>
     </div>
   </header>
+
+  <div class="hud" id="hud" hidden>
+    <div class="hud-hearts" id="hudHearts" aria-label="Vite"></div>
+    <div class="hud-stat" title="Undo rimasti"><span class="hud-label">Undo</span> <strong id="hudUndos">3</strong></div>
+    <div class="hud-stat" title="Punteggio"><span class="hud-label">Pt</span> <strong id="hudScore">0</strong></div>
+    <div class="hud-relics" id="hudRelics" aria-label="Reliquie"></div>
+  </div>
 
   <main class="stage">
     <p class="hint" id="hint">Tocca una bottiglia, poi dove versare.</p>
@@ -51,17 +58,39 @@
     </button>
     <button type="button" class="btn btn-ghost" id="btnRestart" aria-label="Ricomincia">
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
-      <span>Restart</span>
+      <span id="restartLabel">Restart</span>
     </button>
-    <div class="level-nav">
+    <button type="button" class="btn btn-ghost" id="btnHint" hidden aria-label="Suggerimento">
+      <span>Hint</span>
+    </button>
+    <div class="level-nav" id="archiveNav">
       <button type="button" class="btn btn-icon" id="btnPrev" aria-label="Livello precedente">‹</button>
       <button type="button" class="btn btn-primary" id="btnNext" aria-label="Livello successivo">Livello ›</button>
     </div>
+    <button type="button" class="btn btn-primary" id="btnMode" aria-label="Cambia modalità">Archivio</button>
   </footer>
 
+  <!-- Title / run start -->
+  <div class="overlay" id="titleOverlay">
+    <div class="modal modal-wide" role="dialog" aria-labelledby="titleHeading" aria-modal="true">
+      <p class="modal-kicker">Spedizione rogue</p>
+      <h2 id="titleHeading">Colorini Run</h2>
+      <p class="modal-text">
+        8 piani procedurali, vite limitate, undo preziosi e reliquie tra un piano e l’altro.
+        Ricominciare un piano costa una vita — a meno di una reliquia.
+      </p>
+      <p class="best-run" id="bestRun">Record: —</p>
+      <div class="modal-actions modal-actions-stack">
+        <button type="button" class="btn btn-primary" id="btnNewRun">Nuova spedizione</button>
+        <button type="button" class="btn btn-ghost" id="btnOpenArchive">Archivio livelli</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Win floor / classic win -->
   <div class="overlay" id="winOverlay" hidden>
     <div class="modal" role="dialog" aria-labelledby="winTitle" aria-modal="true">
-      <p class="modal-kicker">Completato</p>
+      <p class="modal-kicker" id="winKicker">Completato</p>
       <h2 id="winTitle">Colori in ordine!</h2>
       <p class="modal-text" id="winText">Hai risolto il livello.</p>
       <div class="modal-actions">
@@ -71,7 +100,32 @@
     </div>
   </div>
 
+  <!-- Relic pick -->
+  <div class="overlay" id="relicOverlay" hidden>
+    <div class="modal modal-wide" role="dialog" aria-labelledby="relicTitle" aria-modal="true">
+      <p class="modal-kicker">Bottino del piano</p>
+      <h2 id="relicTitle">Scegli una reliquia</h2>
+      <p class="modal-text">Ti accompagnerà per il resto della spedizione.</p>
+      <div class="relic-grid" id="relicGrid"></div>
+    </div>
+  </div>
+
+  <!-- Game over / run win -->
+  <div class="overlay" id="runOverlay" hidden>
+    <div class="modal" role="dialog" aria-labelledby="runTitle" aria-modal="true">
+      <p class="modal-kicker" id="runKicker">Spedizione</p>
+      <h2 id="runTitle">Fine della run</h2>
+      <p class="modal-text" id="runText"></p>
+      <div class="modal-actions modal-actions-stack">
+        <button type="button" class="btn btn-primary" id="btnRunAgain">Di nuovo</button>
+        <button type="button" class="btn btn-ghost" id="btnRunTitle">Titolo</button>
+      </div>
+    </div>
+  </div>
+
   <script src="js/levels.js"></script>
+  <script src="js/procgen.js"></script>
+  <script src="js/rogue.js"></script>
   <script src="js/music.js"></script>
   <script src="js/game.js"></script>
 </body>
