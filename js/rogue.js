@@ -1,14 +1,13 @@
 /**
- * Roguelike relics & run helpers for Colorini.
+ * Roguelike relics & run helpers — 1 life, death keeps relics, steep climb.
  */
 window.ColoriniRogue = (function () {
   "use strict";
 
-  const TOTAL_FLOORS = 8;
-  const BASE_HP = 3;
+  const TOTAL_FLOORS = 12;
+  const BASE_HP = 1;
   const BASE_UNDOS = 3;
 
-  /** @type {Record<string, { id: string, name: string, desc: string, rarity: string, stack?: boolean }>} */
   const RELICS = {
     ghost_bottle: {
       id: "ghost_bottle",
@@ -28,41 +27,35 @@ window.ColoriniRogue = (function () {
       desc: "+1 undo all’inizio di ogni piano.",
       rarity: "common",
     },
-    spare_heart: {
-      id: "spare_heart",
-      name: "Cuore di vetro",
-      desc: "+1 vita massima e cura 1 ♥.",
+    echo_vial: {
+      id: "echo_vial",
+      name: "Fiala eco",
+      desc: "+1 undo permanente su ogni piano.",
       rarity: "rare",
     },
     soft_reset: {
       id: "soft_reset",
       name: "Tappo di scorta",
-      desc: "1 ricomincia gratis per piano.",
-      rarity: "common",
+      desc: "1 ricomincia del piano senza morire.",
+      rarity: "rare",
     },
     chromatic_luck: {
       id: "chromatic_luck",
       name: "Fortuna cangiante",
-      desc: "Un colore parte già ordinato.",
+      desc: "Un colore parte già ordinato (non sui boss).",
       rarity: "rare",
-    },
-    second_wind: {
-      id: "second_wind",
-      name: "Secondo soffio",
-      desc: "La prima morte diventa 1 ♥.",
-      rarity: "legendary",
     },
     tidy_hands: {
       id: "tidy_hands",
       name: "Mani ordinate",
-      desc: "All’inizio del piano: +1 undo extra.",
+      desc: "+1 undo all’inizio di ogni piano.",
       rarity: "common",
     },
     boss_ward: {
       id: "boss_ward",
       name: "Sigillo anti-boss",
-      desc: "Nei boss parti con +2 undo.",
-      rarity: "rare",
+      desc: "Nei boss parti con +3 undo.",
+      rarity: "legendary",
     },
     crystal_focus: {
       id: "crystal_focus",
@@ -70,15 +63,23 @@ window.ColoriniRogue = (function () {
       desc: "Suggerisce una mossa valida (1/piano).",
       rarity: "common",
     },
+    iron_cork: {
+      id: "iron_cork",
+      name: "Tappo di ferro",
+      desc: "Nei piani con 1 vuoto, +1 undo.",
+      rarity: "common",
+    },
   };
 
   const POOL = Object.keys(RELICS);
+  const STACKABLE = new Set(["liquid_memory", "deep_pockets", "tidy_hands", "echo_vial"]);
 
   function createRun(seedStr) {
-    const seed = (typeof window !== "undefined" && window.ColoriniProcgen
-      ? window.ColoriniProcgen
-      : globalThis.ColoriniProcgen
-    ).hashSeed(seedStr || String(Date.now()));
+    const Proc =
+      typeof window !== "undefined" && window.ColoriniProcgen
+        ? window.ColoriniProcgen
+        : globalThis.ColoriniProcgen;
+    const seed = Proc.hashSeed(seedStr || String(Date.now()));
     return {
       seed,
       seedStr: seedStr || String(seed),
@@ -91,11 +92,13 @@ window.ColoriniRogue = (function () {
       hintsLeft: 0,
       undosLeft: BASE_UNDOS,
       undosFloorBase: BASE_UNDOS,
-      secondWindAvailable: false,
       score: 0,
       floorsCleared: 0,
+      bestFloor: 0,
+      deaths: 0,
       alive: true,
       won: false,
+      deathCycle: 0,
     };
   }
 
@@ -109,75 +112,61 @@ window.ColoriniRogue = (function () {
 
   function applyRelicPickup(run, id) {
     run.relics.push(id);
-    if (id === "spare_heart") {
-      run.maxHp += 1;
-      run.hp = Math.min(run.maxHp, run.hp + 1);
-    }
-    if (id === "second_wind") {
-      run.secondWindAvailable = true;
-    }
   }
 
-  function undosForFloor(run, isBoss) {
-    let n = BASE_UNDOS;
+  function undosForFloor(run, spec) {
+    let n = spec && spec.baseUndos != null ? spec.baseUndos : BASE_UNDOS;
     n += countRelic(run, "liquid_memory") * 2;
     n += countRelic(run, "deep_pockets");
     n += countRelic(run, "tidy_hands");
-    if (isBoss && hasRelic(run, "boss_ward")) n += 2;
-    return n;
+    n += countRelic(run, "echo_vial");
+    if (spec && spec.isBoss && hasRelic(run, "boss_ward")) n += 3;
+    if (spec && spec.empty === 1 && hasRelic(run, "iron_cork")) n += 1;
+    return Math.max(1, n);
   }
 
-  function prepareFloorCharges(run, isBoss) {
-    run.undosLeft = undosForFloor(run, isBoss);
+  function prepareFloorCharges(run, spec) {
+    run.undosLeft = undosForFloor(run, spec);
     run.undosFloorBase = run.undosLeft;
     run.freeRestarts = hasRelic(run, "soft_reset") ? 1 : 0;
     run.hintsLeft = hasRelic(run, "crystal_focus") ? 1 : 0;
   }
 
   function emptyBonus(run) {
-    return countRelic(run, "ghost_bottle");
+    return Math.min(1, countRelic(run, "ghost_bottle"));
   }
 
-  function preSortedBonus(run) {
-    return hasRelic(run, "chromatic_luck") ? 1 : 0;
+  function preSortedBonus(run, spec) {
+    if (!hasRelic(run, "chromatic_luck")) return 0;
+    if (spec && (spec.isBoss || spec.isFinal)) return 0;
+    if (spec && spec.style === "nightmare") return 0;
+    return 1;
   }
 
-  function loseHp(run, amount) {
-    run.hp -= amount;
-    if (run.hp <= 0) {
-      if (run.secondWindAvailable) {
-        run.secondWindAvailable = false;
-        run.hp = 1;
-        // consume the relic visually: keep it but flag used
-        run.secondWindUsed = true;
-        return { dead: false, secondWind: true };
-      }
-      run.hp = 0;
-      run.alive = false;
-      return { dead: true, secondWind: false };
-    }
-    return { dead: false, secondWind: false };
+  /**
+   * Death: back to floor 1, keep relics & score, refresh the single life.
+   * Run continues until victory (or player quits to title).
+   */
+  function onDeath(run) {
+    run.deaths += 1;
+    run.deathCycle += 1;
+    run.floor = 0;
+    run.hp = BASE_HP;
+    run.maxHp = BASE_HP;
+    run.alive = true;
+    run.freeRestarts = 0;
+    return { resetToStart: true };
   }
 
   function pickRelicOffers(run, rng, count) {
-    const owned = new Set(run.relics);
-    // second_wind only once; spare_heart can stack once or twice
     let available = POOL.filter((id) => {
-      if (owned.has(id) && id === "second_wind") return false;
-      if (owned.has(id) && id === "chromatic_luck") return false;
-      if (owned.has(id) && id === "soft_reset") return false;
-      if (owned.has(id) && id === "crystal_focus") return false;
-      if (owned.has(id) && id === "boss_ward") return false;
-      if (countRelic(run, id) >= 2 && (id === "liquid_memory" || id === "deep_pockets" || id === "ghost_bottle" || id === "spare_heart" || id === "tidy_hands")) {
-        return false;
-      }
-      if (owned.has(id) && !["liquid_memory", "deep_pockets", "ghost_bottle", "spare_heart", "tidy_hands"].includes(id)) {
-        return false;
-      }
-      return true;
+      const n = countRelic(run, id);
+      if (n === 0) return true;
+      if (STACKABLE.has(id) && n < 2) return true;
+      if (id === "ghost_bottle") return false;
+      return false;
     });
 
-    // Weighted by rarity
     const weight = (id) => {
       const r = RELICS[id].rarity;
       if (r === "common") return 5;
@@ -204,8 +193,13 @@ window.ColoriniRogue = (function () {
     return picks;
   }
 
-  function floorScore(undosLeft, undosBase, hp) {
-    return 100 + undosLeft * 15 + hp * 5 + Math.max(0, undosBase - 3) * 2;
+  function floorScore(undosLeft, undosBase, floorIndex) {
+    return 80 + floorIndex * 25 + undosLeft * 20 + Math.max(0, undosBase) * 2;
+  }
+
+  /** Clear relics only when a run is fully won or a brand-new run starts. */
+  function clearRelics(run) {
+    run.relics = [];
   }
 
   return {
@@ -220,8 +214,10 @@ window.ColoriniRogue = (function () {
     prepareFloorCharges,
     emptyBonus,
     preSortedBonus,
-    loseHp,
+    onDeath,
     pickRelicOffers,
     floorScore,
+    clearRelics,
+    undosForFloor,
   };
 })();

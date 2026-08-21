@@ -104,15 +104,16 @@
   function saveBest(run) {
     const prev = loadBest();
     const next = {
-      floors: run.floorsCleared,
+      floors: run.bestFloor || run.floorsCleared,
       score: run.score,
       won: run.won,
+      deaths: run.deaths || 0,
     };
     if (
       !prev ||
-      next.floors > prev.floors ||
-      (next.floors === prev.floors && next.score > prev.score) ||
-      (next.won && !prev.won)
+      (next.won && !prev.won) ||
+      (next.won === prev.won && next.floors > prev.floors) ||
+      (next.won === prev.won && next.floors === prev.floors && next.score > prev.score)
     ) {
       try {
         localStorage.setItem(STORAGE_BEST, JSON.stringify(next));
@@ -249,7 +250,7 @@
       renderHearts();
       renderRelicHud();
       restartLabel.textContent =
-        state.run.freeRestarts > 0 ? "Free" : "♥ Restart";
+        state.run.freeRestarts > 0 ? "Free" : "☠ Muori";
       btnHint.hidden = !(state.run.hintsLeft > 0);
       btnUndo.disabled =
         state.busy || state.history.length === 0 || state.run.undosLeft <= 0;
@@ -351,23 +352,34 @@
   function startFloor() {
     const run = state.run;
     const spec = Proc.floorSpec(run.floor, run.totalFloors);
-    Rogue.prepareFloorCharges(run, spec.isBoss);
-    const rng = Proc.mulberry32((run.seed ^ (run.floor * 2654435761)) >>> 0);
+    Rogue.prepareFloorCharges(run, spec);
+    // New layout each attempt / death cycle
+    const rng = Proc.mulberry32(
+      (run.seed ^ (run.floor * 2654435761) ^ (run.deathCycle * 40503)) >>> 0
+    );
     state.floorRng = rng;
     const extraEmpty = Rogue.emptyBonus(run);
     const puzzle = Proc.generatePuzzle(rng, {
       colors: spec.colors,
-      empty: spec.empty + extraEmpty,
+      empty: Math.max(1, spec.empty + extraEmpty),
       scramble: spec.scramble,
       capacity: spec.capacity,
-      preSorted: Rogue.preSortedBonus(run),
+      style: spec.style,
+      twist: spec.twist,
+      preSorted: Rogue.preSortedBonus(run, spec),
       name: spec.name,
-      isBoss: spec.isBoss,
     });
     puzzle.isBoss = spec.isBoss;
+    puzzle.isFinal = spec.isFinal;
+    puzzle.baseUndos = spec.baseUndos;
+    puzzle.empty = Math.max(1, spec.empty + extraEmpty);
     state.mode = "rogue";
     loadPuzzle(puzzle.bottles, puzzle.capacity, puzzle);
-    if (spec.isBoss) setHint("Boss: concentra i colori. Undo contati!", true);
+    if (spec.isFinal) {
+      setHint("Boss finale: un solo vuoto, colori intrecciati. Occhio agli undo.", true);
+    } else if (spec.isBoss) {
+      setHint("Mini-boss: layout mirato, spazio risicato.", true);
+    }
   }
 
   function beginRun() {
@@ -423,30 +435,21 @@
         state.bottles = cloneBottles(state.startBottles);
         state.history = [];
         state.selected = null;
-        Rogue.prepareFloorCharges(state.run, !!(state.puzzleMeta && state.puzzleMeta.isBoss));
-        // keep free restart consumed
+        const spec = Proc.floorSpec(state.run.floor, state.run.totalFloors);
+        Rogue.prepareFloorCharges(state.run, spec);
         state.run.freeRestarts = 0;
-        setHint("Ricomincia gratis usato.", true);
+        setHint("Tappo di scorta: piano rifatto, sei ancora vivo.", true);
         render();
         return;
       }
-      const result = Rogue.loseHp(state.run, 1);
-      if (result.secondWind) {
-        setHint("Secondo soffio! Torni con 1 ♥.", true);
-      }
-      if (result.dead) {
-        render();
-        endRun(false);
-        return;
-      }
-      state.bottles = cloneBottles(state.startBottles);
-      state.history = [];
-      state.selected = null;
-      // Refresh undos on paid restart (harsh but clear)
-      Rogue.prepareFloorCharges(state.run, !!(state.puzzleMeta && state.puzzleMeta.isBoss));
-      state.run.freeRestarts = 0;
-      setHint("Piano rifatto (−1 ♥).", true);
-      render();
+      // One life: death → floor 1, relics kept until the run is won
+      Rogue.onDeath(state.run);
+      hideOverlays();
+      setHint(
+        `Morte #${state.run.deaths}. Torna al piano 1 — reliquie conservate.`,
+        true
+      );
+      startFloor();
       return;
     }
 
@@ -596,17 +599,23 @@
       const gained = Rogue.floorScore(
         state.run.undosLeft,
         state.run.undosFloorBase,
-        state.run.hp
+        state.run.floor
       );
       state.run.score += gained;
       state.run.floorsCleared += 1;
+      state.run.bestFloor = Math.max(state.run.bestFloor, state.run.floor + 1);
 
-      winKicker.textContent = state.puzzleMeta && state.puzzleMeta.isBoss ? "Boss sconfitto" : "Piano netto";
+      winKicker.textContent =
+        state.puzzleMeta && state.puzzleMeta.isFinal
+          ? "Boss finale"
+          : state.puzzleMeta && state.puzzleMeta.isBoss
+            ? "Boss sconfitto"
+            : "Piano netto";
       winTitle.textContent = "Colori in ordine!";
       winText.textContent = `+${gained} pt · Totale ${state.run.score}.`;
       btnReplay.hidden = true;
       btnContinue.textContent =
-        state.run.floor >= state.run.totalFloors - 1 ? "Bottino finale" : "Scegli reliquia";
+        state.run.floor >= state.run.totalFloors - 1 ? "Vittoria" : "Scegli reliquia";
       winOverlay.hidden = false;
       updateChrome();
       return;
@@ -660,13 +669,16 @@
     if (!run) return;
     run.won = won;
     run.alive = won;
+    if (won) {
+      Rogue.clearRelics(run);
+    }
     saveBest(run);
     hideOverlays();
-    runKicker.textContent = won ? "Vittoria" : "Game over";
-    runTitle.textContent = won ? "Spedizione compiuta!" : "Le vite sono finite";
+    runKicker.textContent = won ? "Vittoria" : "Spedizione";
+    runTitle.textContent = won ? "Spedizione compiuta!" : "Fine";
     runText.textContent = won
-      ? `Hai superato ${run.totalFloors} piani con ${run.score} punti e ${run.relics.length} reliquie.`
-      : `Arrivato al piano ${run.floorsCleared}/${run.totalFloors}. Punteggio: ${run.score}.`;
+      ? `${run.totalFloors} piani. ${run.score} punti, ${run.deaths} morti — reliquie consumate dal trionfo.`
+      : `Miglior piano: ${run.bestFloor}/${run.totalFloors}. Punti: ${run.score}.`;
     runOverlay.hidden = false;
     updateChrome();
   }
