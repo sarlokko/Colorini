@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="Colorini — ordina i colori nelle bottigliette. Puzzle water sort gratis." />
+  <meta name="theme-color" content="#0d9488" />
+  <title>Colorini — Water Sort</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d9488'/%3E%3Cpath d='M22 12h20v6c0 2-2 4-4 4v28c0 4-3 6-6 6s-6-2-6-6V22c-2 0-4-2-4-4V12z' fill='%23fff' opacity='.9'/%3E%3Cpath d='M26 34h12v16c0 2-1.5 3-4 3s-4-1-4-3V34z' fill='%23f97316'/%3E%3Cpath d='M26 26h12v8H26z' fill='%2338bdf8'/%3E%3C/svg%3E" />
+</head>
+<body>
+  <div class="atmosphere" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <h1 class="brand-name">Colorini</h1>
+    </div>
+    <p class="level-chip" id="levelLabel">Livello 1</p>
+  </header>
+
+  <main class="stage">
+    <p class="hint" id="hint">Tocca una bottiglia, poi dove versare.</p>
+    <div class="rack" id="rack" role="group" aria-label="Bottiglie"></div>
+  </main>
+
+  <footer class="controls">
+    <button type="button" class="btn btn-ghost" id="btnUndo" aria-label="Annulla">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12.5 8c-2.65 0-5.05 1-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>
+      <span>Undo</span>
+    </button>
+    <button type="button" class="btn btn-ghost" id="btnRestart" aria-label="Ricomincia">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
+      <span>Restart</span>
+    </button>
+    <div class="level-nav">
+      <button type="button" class="btn btn-icon" id="btnPrev" aria-label="Livello precedente">‹</button>
+      <button type="button" class="btn btn-primary" id="btnNext" aria-label="Livello successivo">Livello ›</button>
+    </div>
+  </footer>
+
+  <div class="overlay" id="winOverlay" hidden>
+    <div class="modal" role="dialog" aria-labelledby="winTitle" aria-modal="true">
+      <p class="modal-kicker">Completato</p>
+      <h2 id="winTitle">Colori in ordine!</h2>
+      <p class="modal-text" id="winText">Hai risolto il livello.</p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="btnReplay">Rigioca</button>
+        <button type="button" class="btn btn-primary" id="btnContinue">Avanti</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/levels.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
