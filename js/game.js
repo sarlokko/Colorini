@@ -831,7 +831,13 @@
       endRun(true);
       return;
     }
-    if (vendorQuote) delete vendorQuote.dataset.chatting;
+    if (vendorQuote) {
+      delete vendorQuote.dataset.chatting;
+      const greetRng = Proc.mulberry32(
+        (run.seed ^ ((run.floor + 91) * 2246822519) ^ (run.deathCycle * 19)) >>> 0
+      );
+      vendorQuote.textContent = Vendor.quote(greetRng);
+    }
     renderVendorShelf();
     vendorOverlay.hidden = false;
   }
