@@ -16,21 +16,21 @@ window.ColoriniRogue = (function () {
     step_cache: {
       id: "step_cache",
       name: "Scorte di passo",
-      desc: "+4 mosse ogni piano.",
+      desc: "+1 mossa ogni piano.",
       rarity: "common",
       consumable: false,
     },
     quick_pour: {
       id: "quick_pour",
       name: "Verso rapido",
-      desc: "+2 mosse ogni piano.",
+      desc: "+1 mossa ogni piano.",
       rarity: "common",
       consumable: false,
     },
     efficient_mind: {
       id: "efficient_mind",
       name: "Mente efficiente",
-      desc: "+1 mossa permanente alla run.",
+      desc: "+1 mossa permanente alla run (max 2 stack).",
       rarity: "rare",
       consumable: false,
     },
@@ -44,7 +44,7 @@ window.ColoriniRogue = (function () {
     gambler_cork: {
       id: "gambler_cork",
       name: "Tappo scommettitore",
-      desc: "+6 mosse ogni piano, −1 undo base.",
+      desc: "+2 mosse ogni piano, ma −1 undo base.",
       rarity: "common",
       consumable: false,
     },
@@ -65,33 +65,35 @@ window.ColoriniRogue = (function () {
     last_gasp: {
       id: "last_gasp",
       name: "Ultimo sussulto",
-      desc: "Monouso: a 0 mosse ottieni +3 mosse.",
+      desc: "Monouso: a 0 mosse ottieni +2 mosse.",
       rarity: "rare",
       consumable: true,
     },
     boss_ration: {
       id: "boss_ration",
       name: "Razione del boss",
-      desc: "Monouso: al prossimo boss, +10 mosse.",
+      desc: "Monouso raro: al prossimo boss, +10 mosse.",
       rarity: "legendary",
       consumable: true,
     },
     thrift: {
       id: "thrift",
       name: "Parsimonia",
-      desc: "Monouso: se chiudi con ≥5 mosse residue, +2 mosse permanenti.",
+      desc: "Monouso: se chiudi con ≥5 mosse residue, +1 mossa permanente.",
       rarity: "rare",
       consumable: true,
     },
   };
 
   const POOL = Object.keys(RELICS);
-  const STACKABLE = new Set([
-    "step_cache",
-    "quick_pour",
-    "efficient_mind",
-    "undo_kit",
-  ]);
+  /** Only efficient_mind stacks; move passives are unique. */
+  const STACKABLE = new Set(["efficient_mind"]);
+
+  /** Extra scarcity for legendaries (multiplies rarity weight). */
+  const LEGENDARY_WEIGHT = {
+    boss_ration: 0.12,
+    ghost_bottle: 0.2,
+  };
 
   function createRun(seedStr) {
     const Proc =
@@ -161,9 +163,9 @@ window.ColoriniRogue = (function () {
 
   function movesForFloor(run, spec) {
     let n = spec && spec.moveLimit != null ? spec.moveLimit : 20;
-    n += countRelic(run, "step_cache") * 4;
-    n += countRelic(run, "quick_pour") * 2;
-    n += countRelic(run, "gambler_cork") * 6;
+    n += countRelic(run, "step_cache") * 1;
+    n += countRelic(run, "quick_pour") * 1;
+    n += countRelic(run, "gambler_cork") * 2;
     n += run.permanentMoves || 0;
     return Math.max(5, n);
   }
@@ -206,12 +208,12 @@ window.ColoriniRogue = (function () {
     return 0;
   }
 
-  /** Consumable: +3 moves once, then relic is destroyed. */
+  /** Consumable: +2 moves once, then relic is destroyed. */
   function tryLastGasp(run) {
     if (!hasRelic(run, "last_gasp")) return false;
     if (run.movesLeft > 0) return false;
     consumeRelic(run, "last_gasp");
-    run.movesLeft += 3;
+    run.movesLeft += 2;
     return true;
   }
 
@@ -228,9 +230,9 @@ window.ColoriniRogue = (function () {
     run.lastClearMovesLeft = movesLeft;
     run.lastClearMovesMax = movesMax;
     if (hasRelic(run, "thrift") && movesLeft >= 5) {
-      run.permanentMoves += 2;
+      run.permanentMoves += 1;
       consumeRelic(run, "thrift");
-      return { thriftBonus: 2 };
+      return { thriftBonus: 1 };
     }
     return { thriftBonus: 0 };
   }
@@ -248,25 +250,32 @@ window.ColoriniRogue = (function () {
 
   function pickRelicOffers(run, rng, count, movesLeft, movesMax) {
     const ratio = movesMax > 0 ? movesLeft / movesMax : 0;
-    let commonW = 5;
-    let rareW = 3;
-    let legW = 1;
+    // Base rarity bands — legendaries stay scarce even on clutch clears
+    let commonW = 6;
+    let rareW = 2.5;
+    let legW = 0.35;
     if (ratio <= 0.15) {
-      commonW = 1;
+      commonW = 3;
       rareW = 4;
-      legW = 4;
+      legW = 0.9;
     } else if (ratio <= 0.35) {
-      commonW = 2;
-      rareW = 5;
-      legW = 2;
+      commonW = 4;
+      rareW = 3.5;
+      legW = 0.55;
     } else if (ratio >= 0.55) {
-      commonW = 7;
-      rareW = 2;
-      legW = 0.5;
+      commonW = 8;
+      rareW = 1.5;
+      legW = 0.12;
     }
+
+    // Most of the time legendaries are not even in the draft pool
+    const legendaryGate =
+      ratio <= 0.15 ? 0.22 : ratio <= 0.35 ? 0.1 : 0.04;
+    const allowLegendary = rng() < legendaryGate;
 
     let available = POOL.filter((id) => {
       const n = countRelic(run, id);
+      if (RELICS[id].rarity === "legendary" && !allowLegendary) return false;
       if (n === 0) return true;
       if (!isConsumable(id) && STACKABLE.has(id) && n < 2) return true;
       return false;
@@ -276,13 +285,15 @@ window.ColoriniRogue = (function () {
       const r = RELICS[id].rarity;
       if (r === "common") return commonW;
       if (r === "rare") return rareW;
-      return legW;
+      const mult = LEGENDARY_WEIGHT[id] != null ? LEGENDARY_WEIGHT[id] : 0.25;
+      return legW * mult;
     };
 
     const picks = [];
     available = available.slice();
     for (let n = 0; n < count && available.length; n++) {
       const total = available.reduce((s, id) => s + weight(id), 0);
+      if (total <= 0) break;
       let roll = rng() * total;
       let chosen = available[0];
       for (const id of available) {

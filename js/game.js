@@ -611,7 +611,7 @@
 
     if (state.mode === "rogue" && state.run && state.run.movesLeft <= 0) {
       if (Rogue.tryLastGasp(state.run)) {
-        setHint("Ultimo sussulto consumato: +3 mosse!", true);
+        setHint("Ultimo sussulto consumato: +2 mosse!", true);
         updateChrome();
       } else {
         dieFromMoves();
@@ -653,7 +653,7 @@
       state.run.movesLeft <= 0
     ) {
       if (Rogue.tryLastGasp(state.run)) {
-        setHint("Ultimo sussulto consumato: +3 mosse!", true);
+        setHint("Ultimo sussulto consumato: +2 mosse!", true);
         updateChrome();
       } else {
         dieFromMoves();
