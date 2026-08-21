@@ -53,7 +53,11 @@
   const btnVendorLeave = document.getElementById("btnVendorLeave");
   const btnTravasoTalk = document.getElementById("btnTravasoTalk");
   const btnTravasoName = document.getElementById("btnTravasoName");
+  const travasoBubble = document.getElementById("travasoBubble");
+  const travasoBubbleText = document.getElementById("travasoBubbleText");
   const relicGrid = document.getElementById("relicGrid");
+  let travasoBubbleTimer = null;
+  let lastTravasoLine = "";
 
   const runOverlay = document.getElementById("runOverlay");
   const runKicker = document.getElementById("runKicker");
@@ -823,6 +827,55 @@
     });
   }
 
+  function hideTravasoBubble() {
+    if (travasoBubbleTimer) {
+      clearTimeout(travasoBubbleTimer);
+      travasoBubbleTimer = null;
+    }
+    if (travasoBubble) travasoBubble.hidden = true;
+  }
+
+  function showTravasoBubble(line) {
+    if (!travasoBubble || !travasoBubbleText) return;
+    travasoBubbleText.textContent = line;
+    travasoBubble.hidden = false;
+    travasoBubble.classList.remove("bubble-pop");
+    void travasoBubble.offsetWidth;
+    travasoBubble.classList.add("bubble-pop");
+    if (travasoBubbleTimer) clearTimeout(travasoBubbleTimer);
+    travasoBubbleTimer = setTimeout(() => {
+      if (travasoBubble) travasoBubble.hidden = true;
+      travasoBubbleTimer = null;
+    }, 6500);
+  }
+
+  function travasoSayAdvice(e) {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (!Vendor) return;
+    const run = state.run;
+    const salt =
+      (Date.now() + (((run && run.wallet) || 0) + 1) * 9973) >>> 0;
+    const rng = Proc.mulberry32(salt);
+    const next =
+      typeof Vendor.advice === "function"
+        ? Vendor.advice(rng, lastTravasoLine)
+        : "Ehm… ho perso la lingua. Riprova!";
+    lastTravasoLine = next;
+    showTravasoBubble(next);
+    if (vendorQuote) {
+      vendorQuote.dataset.chatting = "1";
+      vendorQuote.textContent = "Travaso sta divagando…";
+    }
+    if (btnTravasoTalk) {
+      btnTravasoTalk.classList.remove("is-talking");
+      void btnTravasoTalk.offsetWidth;
+      btnTravasoTalk.classList.add("is-talking");
+    }
+  }
+
   function openVendor() {
     winOverlay.hidden = true;
     const run = state.run;
@@ -831,6 +884,8 @@
       endRun(true);
       return;
     }
+    hideTravasoBubble();
+    lastTravasoLine = "";
     if (vendorQuote) {
       delete vendorQuote.dataset.chatting;
       const greetRng = Proc.mulberry32(
@@ -842,26 +897,9 @@
     vendorOverlay.hidden = false;
   }
 
-  function travasoSayAdvice() {
-    if (!Vendor || !vendorQuote) return;
-    const run = state.run;
-    const salt = (Date.now() ^ ((run && run.wallet) || 0) * 9973) >>> 0;
-    const rng = Proc.mulberry32(salt);
-    const next = Vendor.advice(rng, vendorQuote.textContent);
-    vendorQuote.dataset.chatting = "1";
-    vendorQuote.textContent = next;
-    vendorQuote.classList.remove("quote-pop");
-    void vendorQuote.offsetWidth;
-    vendorQuote.classList.add("quote-pop");
-    if (btnTravasoTalk) {
-      btnTravasoTalk.classList.remove("is-talking");
-      void btnTravasoTalk.offsetWidth;
-      btnTravasoTalk.classList.add("is-talking");
-    }
-  }
-
   function leaveVendor() {
     if (!state.run) return;
+    hideTravasoBubble();
     vendorOverlay.hidden = true;
     state.run.floor += 1;
     startFloor();
@@ -943,11 +981,13 @@
     btnVendorLeave.addEventListener("click", leaveVendor);
   }
 
-  if (btnTravasoTalk) {
-    btnTravasoTalk.addEventListener("click", travasoSayAdvice);
-  }
-  if (btnTravasoName) {
-    btnTravasoName.addEventListener("click", travasoSayAdvice);
+  // Delegation: reliable on mobile even if nested spans eat the hit
+  if (vendorOverlay) {
+    vendorOverlay.addEventListener("click", (e) => {
+      const talker = e.target.closest("#btnTravasoTalk, #btnTravasoName");
+      if (!talker) return;
+      travasoSayAdvice(e);
+    });
   }
 
   btnNewRun.addEventListener("click", () => {

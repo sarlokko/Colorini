@@ -108,21 +108,26 @@
   <div class="overlay vendor-overlay" id="vendorOverlay" hidden>
     <div class="vendor-panel" role="dialog" aria-labelledby="vendorTitle" aria-modal="true">
       <div class="vendor-hero">
-        <button type="button" class="vendor-mascot" id="btnTravasoTalk" aria-label="Chiedi un consiglio a Travaso" title="Tocca per un consiglio (inutile)">
-          <span class="mascot-hat" aria-hidden="true"></span>
-          <span class="mascot-bottle" aria-hidden="true">
-            <span class="mascot-face"></span>
-            <span class="mascot-liquid"></span>
-          </span>
-          <span class="mascot-mustache" aria-hidden="true"></span>
-          <span class="mascot-tap-hint" aria-hidden="true">?</span>
-        </button>
+        <div class="travaso-stage">
+          <button type="button" class="vendor-mascot" id="btnTravasoTalk" aria-label="Chiedi un consiglio a Travaso" title="Tocca per un consiglio (inutile)">
+            <span class="mascot-hat" aria-hidden="true"></span>
+            <span class="mascot-bottle" aria-hidden="true">
+              <span class="mascot-face"></span>
+              <span class="mascot-liquid"></span>
+            </span>
+            <span class="mascot-mustache" aria-hidden="true"></span>
+            <span class="mascot-tap-hint" aria-hidden="true">?</span>
+          </button>
+          <div class="travaso-bubble" id="travasoBubble" hidden>
+            <p class="travaso-bubble-text" id="travasoBubbleText"></p>
+          </div>
+        </div>
         <div class="vendor-intro">
           <p class="modal-kicker">Bottega errante</p>
           <h2 id="vendorTitle">
             <button type="button" class="travaso-name" id="btnTravasoName" aria-label="Travaso parla">Travaso</button>
           </h2>
-          <p class="vendor-quote" id="vendorQuote" aria-live="polite">Mosse risparmiate, gocce guadagnate!</p>
+          <p class="vendor-quote" id="vendorQuote" aria-live="polite">Tocca Travaso per un consiglio… inutile!</p>
         </div>
         <div class="vendor-wallet" id="vendorWallet" title="Gocce = mosse avanzate">
           <span class="wallet-drop" aria-hidden="true"></span>

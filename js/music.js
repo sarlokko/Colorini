@@ -70,7 +70,7 @@ window.ColoriniMusic = (function () {
     if (!AC) return null;
     ctx = new AC();
     master = ctx.createGain();
-    master.gain.value = 0.22;
+    master.gain.value = 0.55;
     master.connect(ctx.destination);
     return ctx;
   }
@@ -101,13 +101,13 @@ window.ColoriniMusic = (function () {
       const [note, beats] = MELODY[step % MELODY.length];
       const dur = beats * BEAT * 0.88;
       if (note) {
-        tone(SCALE[note], nextNoteTime, dur, "triangle", 0.11, 2200);
-        tone(SCALE[note] * 2, nextNoteTime, dur * 0.7, "sine", 0.035, 3200);
+        tone(SCALE[note], nextNoteTime, dur, "triangle", 0.22, 2400);
+        tone(SCALE[note] * 2, nextNoteTime, dur * 0.7, "sine", 0.07, 3400);
       }
       // soft bass every other melody step alignment via separate counter
       if (step % 2 === 0) {
         const [bNote, bBeats] = BASS[bassStep % BASS.length];
-        tone(SCALE[bNote] / 2, nextNoteTime, bBeats * BEAT * 0.9, "sine", 0.08, 600);
+        tone(SCALE[bNote] / 2, nextNoteTime, bBeats * BEAT * 0.9, "sine", 0.16, 700);
         bassStep++;
       }
       nextNoteTime += beats * BEAT;
