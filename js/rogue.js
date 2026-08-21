@@ -250,32 +250,26 @@ window.ColoriniRogue = (function () {
 
   function pickRelicOffers(run, rng, count, movesLeft, movesMax) {
     const ratio = movesMax > 0 ? movesLeft / movesMax : 0;
-    // Base rarity bands — legendaries stay scarce even on clutch clears
     let commonW = 6;
     let rareW = 2.5;
-    let legW = 0.35;
     if (ratio <= 0.15) {
       commonW = 3;
       rareW = 4;
-      legW = 0.9;
     } else if (ratio <= 0.35) {
       commonW = 4;
       rareW = 3.5;
-      legW = 0.55;
     } else if (ratio >= 0.55) {
       commonW = 8;
       rareW = 1.5;
-      legW = 0.12;
     }
 
-    // Most of the time legendaries are not even in the draft pool
-    const legendaryGate =
-      ratio <= 0.15 ? 0.22 : ratio <= 0.35 ? 0.1 : 0.04;
-    const allowLegendary = rng() < legendaryGate;
+    // Legendaries never fill the pool when commons run out — separate rare inject
+    const legendaryInjectChance =
+      ratio <= 0.15 ? 0.08 : ratio <= 0.35 ? 0.035 : 0.012;
 
     let available = POOL.filter((id) => {
+      if (RELICS[id].rarity === "legendary") return false;
       const n = countRelic(run, id);
-      if (RELICS[id].rarity === "legendary" && !allowLegendary) return false;
       if (n === 0) return true;
       if (!isConsumable(id) && STACKABLE.has(id) && n < 2) return true;
       return false;
@@ -285,8 +279,7 @@ window.ColoriniRogue = (function () {
       const r = RELICS[id].rarity;
       if (r === "common") return commonW;
       if (r === "rare") return rareW;
-      const mult = LEGENDARY_WEIGHT[id] != null ? LEGENDARY_WEIGHT[id] : 0.25;
-      return legW * mult;
+      return 0;
     };
 
     const picks = [];
@@ -306,6 +299,32 @@ window.ColoriniRogue = (function () {
       picks.push(RELICS[chosen]);
       available = available.filter((id) => id !== chosen);
     }
+
+    if (rng() < legendaryInjectChance) {
+      const legends = POOL.filter(
+        (id) => RELICS[id].rarity === "legendary" && countRelic(run, id) === 0
+      );
+      if (legends.length) {
+        // Prefer ghost slightly over boss ration
+        const lw = legends.map((id) => ({
+          id,
+          w: LEGENDARY_WEIGHT[id] != null ? LEGENDARY_WEIGHT[id] : 0.2,
+        }));
+        const sum = lw.reduce((s, x) => s + x.w, 0);
+        let roll = rng() * sum;
+        let chosen = lw[0].id;
+        for (const x of lw) {
+          roll -= x.w;
+          if (roll <= 0) {
+            chosen = x.id;
+            break;
+          }
+        }
+        if (picks.length >= count) picks[picks.length - 1] = RELICS[chosen];
+        else picks.push(RELICS[chosen]);
+      }
+    }
+
     return picks;
   }
 
