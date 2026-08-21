@@ -230,22 +230,23 @@
   function renderRelicHud() {
     hudRelics.replaceChildren();
     if (!state.run) return;
-    state.run.relics.forEach((id) => {
-      const r = Rogue.RELICS[id];
-      if (!r) return;
+    const bag = Rogue.inventoryByKind(state.run);
+    function addChip(entry, kind) {
       const chip = document.createElement("span");
       chip.className =
-        "relic-chip rarity-" +
-        r.rarity +
-        (r.consumable ? " consumable" : " persistent");
-      chip.title =
-        r.name +
-        " — " +
-        r.desc +
-        (r.consumable ? " (monouso)" : " (permanente)");
-      chip.textContent = (r.consumable ? "1× " : "") + r.name.split(" ")[0];
+        "inv-chip kind-" +
+        kind +
+        " rarity-" +
+        entry.rarity;
+      const label = kind === "item" ? "Oggetto" : "Reliquia";
+      chip.title = label + ": " + entry.name + " — " + entry.desc;
+      chip.innerHTML =
+        `<span class="inv-kind">${kind === "item" ? "1×" : "∞"}</span> ` +
+        entry.name.split(" ")[0];
       hudRelics.appendChild(chip);
-    });
+    }
+    bag.relics.forEach((e) => addChip(e, "relic"));
+    bag.items.forEach((e) => addChip(e, "item"));
   }
 
   function updateChrome() {
@@ -386,6 +387,8 @@
     );
     state.floorRng = rng;
     const extraEmpty = Rogue.emptyBonus(run);
+    // Arm consumable presort before puzzle gen so it can apply
+    Rogue.armFloorPresort(run, spec);
     const puzzle = Proc.generatePuzzle(rng, {
       colors: spec.colors,
       empty: Math.max(1, spec.empty + extraEmpty),
@@ -395,7 +398,7 @@
       capacity: spec.capacity,
       style: spec.style,
       twist: spec.twist,
-      preSorted: Rogue.preSortedBonus(run, spec),
+      preSorted: Rogue.preSortedBonus(run),
       name: spec.name,
     });
 
@@ -488,7 +491,7 @@
     Rogue.onDeath(state.run);
     hideOverlays();
     setHint(
-      `Mosse finite — morte #${state.run.deaths}. Piano 1, reliquie tenute.`,
+      `Mosse finite — morte #${state.run.deaths}. Piano 1, inventario tenuto.`,
       true
     );
     startFloor();
@@ -511,7 +514,7 @@
       Rogue.onDeath(state.run);
       hideOverlays();
       setHint(
-        `Morte #${state.run.deaths}. Torna al piano 1 — reliquie conservate.`,
+        `Morte #${state.run.deaths}. Torna al piano 1 — inventario conservato.`,
         true
       );
       startFloor();
@@ -679,7 +682,7 @@
     });
 
     if (state.mode === "rogue" && state.run) {
-      const thrift = Rogue.onFloorCleared(
+      Rogue.onFloorCleared(
         state.run,
         state.run.movesLeft,
         state.run.movesMax
@@ -701,10 +704,7 @@
             ? "Boss sconfitto"
             : "Piano netto";
       winTitle.textContent = "Colori in ordine!";
-      const thriftMsg = thrift.thriftBonus
-        ? ` · Parsimonia consumata (+${thrift.thriftBonus} permanente)`
-        : "";
-      winText.textContent = `+${gained} pt · +${banked} gocce (ora ${state.run.wallet})${thriftMsg}.`;
+      winText.textContent = `+${gained} pt · +${banked} gocce (ora ${state.run.wallet}).`;
       btnReplay.hidden = true;
       btnContinue.textContent =
         state.run.floor >= state.run.totalFloors - 1 ? "Vittoria" : "Bottega di Travaso";
@@ -740,11 +740,30 @@
     vendorShelf.replaceChildren();
 
     stock.forEach((item) => {
+      const kind = item.shopOnly
+        ? "buff"
+        : item.kind === "relic"
+          ? "relic"
+          : "item";
+      const kindLabel =
+        kind === "relic"
+          ? "Reliquia"
+          : kind === "item"
+            ? "Oggetto"
+            : "Buff";
+      const kindHint =
+        kind === "relic"
+          ? "resta per tutta la run"
+          : kind === "item"
+            ? "consumabile · una volta"
+            : "solo prossimo piano";
+
       const card = document.createElement("div");
       card.className =
-        "vendor-card rarity-" +
+        "vendor-card kind-" +
+        kind +
+        " rarity-" +
         item.rarity +
-        (item.consumable ? " consumable" : "") +
         (item.pinned ? " is-pinned" : "");
 
       const afford = (run.wallet || 0) >= item.cost;
@@ -753,15 +772,15 @@
 
       card.innerHTML =
         `<div class="vendor-card-top">` +
-        `<span class="relic-rarity">${item.rarity}${
-          item.consumable ? " · monouso" : item.shopOnly ? " · buff" : " · fissa"
-        }</span>` +
+        `<span class="kind-badge kind-${kind}" title="${kindHint}">${kindLabel}</span>` +
+        `<span class="relic-rarity">${item.rarity}</span>` +
         `<button type="button" class="pin-btn" aria-label="Fissa merce" data-pin="${item.id}">${
           run.pinnedItem === item.id ? "📌" : "📍"
         }</button>` +
         `</div>` +
         `<strong>${item.name}</strong>` +
         `<span class="relic-desc">${item.desc}</span>` +
+        `<span class="kind-hint">${kindHint}</span>` +
         `<div class="vendor-card-buy">` +
         `<span class="vendor-price"><span class="wallet-drop"></span>${item.cost}</span>` +
         `<button type="button" class="btn btn-primary btn-buy" data-buy="${item.id}" ${

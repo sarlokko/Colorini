@@ -1,5 +1,7 @@
 /**
- * Roguelike relics — passives stay for the run; strong effects are consumable.
+ * Roguelike catalog:
+ * - RELICS = passives that stay for the whole run
+ * - ITEMS  = consumables kept until triggered once
  */
 window.ColoriniRogue = (function () {
   "use strict";
@@ -8,40 +10,23 @@ window.ColoriniRogue = (function () {
   const BASE_HP = 1;
   const BASE_UNDOS = 1;
 
-  /**
-   * consumable: true → removed from inventory when triggered once.
-   * Fixed relics apply every floor for the whole run.
-   */
+  /** Passive relics — unique effects, persist until run ends. */
   const RELICS = {
-    step_cache: {
-      id: "step_cache",
-      name: "Scorte di passo",
-      desc: "+1 mossa ogni piano.",
+    steady_drip: {
+      id: "steady_drip",
+      name: "Goccia costante",
+      desc: "+1 mossa all’inizio di ogni piano.",
       rarity: "common",
+      kind: "relic",
       consumable: false,
       cost: 3,
-    },
-    quick_pour: {
-      id: "quick_pour",
-      name: "Verso rapido",
-      desc: "+1 mossa ogni piano.",
-      rarity: "common",
-      consumable: false,
-      cost: 2,
-    },
-    efficient_mind: {
-      id: "efficient_mind",
-      name: "Mente efficiente",
-      desc: "+1 mossa permanente alla run (max 2 stack).",
-      rarity: "rare",
-      consumable: false,
-      cost: 5,
     },
     undo_kit: {
       id: "undo_kit",
       name: "Kit di ripensamento",
-      desc: "+1 undo ogni piano.",
+      desc: "+1 undo all’inizio di ogni piano.",
       rarity: "common",
+      kind: "relic",
       consumable: false,
       cost: 3,
     },
@@ -50,56 +35,75 @@ window.ColoriniRogue = (function () {
       name: "Tappo scommettitore",
       desc: "+2 mosse ogni piano, ma −1 undo base.",
       rarity: "common",
+      kind: "relic",
       consumable: false,
       cost: 4,
+    },
+    efficient_mind: {
+      id: "efficient_mind",
+      name: "Mente efficiente",
+      desc: "+1 mossa permanente alla run (stack max 2).",
+      rarity: "rare",
+      kind: "relic",
+      consumable: false,
+      cost: 5,
     },
     ghost_bottle: {
       id: "ghost_bottle",
       name: "Bottiglia fantasma",
       desc: "+1 bottiglia vuota ogni piano.",
       rarity: "legendary",
+      kind: "relic",
       consumable: false,
       cost: 10,
     },
+  };
+
+  /** Consumable items — sit in inventory until used once, then gone. */
+  const ITEMS = {
     soft_reset: {
       id: "soft_reset",
       name: "Tappo di scorta",
-      desc: "Monouso: rifai il piano attuale senza morire.",
+      desc: "Rifai il piano attuale senza morire.",
       rarity: "rare",
+      kind: "item",
       consumable: true,
       cost: 6,
     },
     last_gasp: {
       id: "last_gasp",
       name: "Ultimo sussulto",
-      desc: "Monouso: a 0 mosse ottieni +2 mosse.",
+      desc: "A 0 mosse: +2 mosse, poi si consuma.",
       rarity: "rare",
+      kind: "item",
       consumable: true,
       cost: 5,
     },
     boss_ration: {
       id: "boss_ration",
       name: "Razione del boss",
-      desc: "Monouso raro: al prossimo boss, +10 mosse.",
+      desc: "Al prossimo boss: +10 mosse, poi si consuma.",
       rarity: "legendary",
+      kind: "item",
       consumable: true,
       cost: 10,
     },
-    thrift: {
-      id: "thrift",
-      name: "Parsimonia",
-      desc: "Monouso: se chiudi con ≥5 mosse residue, +1 mossa permanente.",
+    ordered_vial: {
+      id: "ordered_vial",
+      name: "Fiala ordinata",
+      desc: "Prossimo piano (non boss): un colore parte già completo.",
       rarity: "rare",
+      kind: "item",
       consumable: true,
-      cost: 4,
+      cost: 5,
     },
   };
 
-  const POOL = Object.keys(RELICS);
-  /** Only efficient_mind stacks; move passives are unique. */
+  /** Combined lookup for inventory ids */
+  const CATALOG = Object.assign({}, RELICS, ITEMS);
+  const POOL = Object.keys(CATALOG);
   const STACKABLE = new Set(["efficient_mind"]);
 
-  /** Extra scarcity for legendaries (multiplies rarity weight). */
   const LEGENDARY_WEIGHT = {
     boss_ration: 0.08,
     ghost_bottle: 0.15,
@@ -139,7 +143,12 @@ window.ColoriniRogue = (function () {
       pinnedItem: null,
       nextFloorMoves: 0,
       nextFloorUndos: 0,
+      nextFloorPresort: 0,
     };
+  }
+
+  function entry(id) {
+    return CATALOG[id] || null;
   }
 
   function hasRelic(run, id) {
@@ -151,7 +160,13 @@ window.ColoriniRogue = (function () {
   }
 
   function isConsumable(id) {
-    return !!(RELICS[id] && RELICS[id].consumable);
+    const e = entry(id);
+    return !!(e && e.consumable);
+  }
+
+  function isRelicKind(id) {
+    const e = entry(id);
+    return !!(e && e.kind === "relic");
   }
 
   function consumeRelic(run, id) {
@@ -162,23 +177,16 @@ window.ColoriniRogue = (function () {
   }
 
   function applyRelicPickup(run, id) {
+    if (!CATALOG[id]) return;
     run.relics.push(id);
-    if (id === "efficient_mind") {
-      run.permanentMoves += 1;
-    }
-    // Soft reset: one charge for the whole run, not every floor
-    if (id === "soft_reset") {
-      run.freeRestarts += 1;
-    }
-    if (id === "boss_ration") {
-      run.pendingBossRation = true;
-    }
+    if (id === "efficient_mind") run.permanentMoves += 1;
+    if (id === "soft_reset") run.freeRestarts += 1;
+    if (id === "boss_ration") run.pendingBossRation = true;
   }
 
   function movesForFloor(run, spec) {
     let n = spec && spec.moveLimit != null ? spec.moveLimit : 20;
-    n += countRelic(run, "step_cache") * 1;
-    n += countRelic(run, "quick_pour") * 1;
+    n += countRelic(run, "steady_drip");
     n += countRelic(run, "gambler_cork") * 2;
     n += run.permanentMoves || 0;
     n += run.nextFloorMoves || 0;
@@ -191,6 +199,17 @@ window.ColoriniRogue = (function () {
     n -= countRelic(run, "gambler_cork");
     n += run.nextFloorUndos || 0;
     return Math.max(0, n);
+  }
+
+  /** Call before generating the puzzle so pre-sort can apply. */
+  function armFloorPresort(run, spec) {
+    if (
+      hasRelic(run, "ordered_vial") &&
+      !(spec && (spec.isBoss || spec.isFinal))
+    ) {
+      run.nextFloorPresort = 1;
+      consumeRelic(run, "ordered_vial");
+    }
   }
 
   function prepareFloorCharges(run, spec) {
@@ -212,33 +231,20 @@ window.ColoriniRogue = (function () {
     run.movesLeft = moves;
     run.undosLeft = undosForFloor(run, spec);
     run.undosFloorBase = run.undosLeft;
-    // One-shot shop buffs apply once
     run.nextFloorMoves = 0;
     run.nextFloorUndos = 0;
-  }
-
-  function bankLeftoverMoves(run, movesLeft) {
-    const gained = Math.max(0, movesLeft | 0);
-    run.wallet = (run.wallet || 0) + gained;
-    return gained;
-  }
-
-  function canOwnMore(run, id) {
-    const n = countRelic(run, id);
-    if (n === 0) return true;
-    if (!isConsumable(id) && STACKABLE.has(id) && n < 2) return true;
-    return false;
   }
 
   function emptyBonus(run) {
     return hasRelic(run, "ghost_bottle") ? 1 : 0;
   }
 
-  function preSortedBonus() {
-    return 0;
+  function preSortedBonus(run) {
+    const n = run.nextFloorPresort || 0;
+    run.nextFloorPresort = 0;
+    return n;
   }
 
-  /** Consumable: +2 moves once, then relic is destroyed. */
   function tryLastGasp(run) {
     if (!hasRelic(run, "last_gasp")) return false;
     if (run.movesLeft > 0) return false;
@@ -247,7 +253,6 @@ window.ColoriniRogue = (function () {
     return true;
   }
 
-  /** Consumable soft reset: spend freeRestart charge and remove relic. */
   function trySoftReset(run) {
     if (run.freeRestarts <= 0) return false;
     run.freeRestarts -= 1;
@@ -255,16 +260,10 @@ window.ColoriniRogue = (function () {
     return true;
   }
 
-  /** Call after a successful clear — thrift is consumable on trigger. */
   function onFloorCleared(run, movesLeft, movesMax) {
     run.lastClearMovesLeft = movesLeft;
     run.lastClearMovesMax = movesMax;
-    if (hasRelic(run, "thrift") && movesLeft >= 5) {
-      run.permanentMoves += 1;
-      consumeRelic(run, "thrift");
-      return { thriftBonus: 1 };
-    }
-    return { thriftBonus: 0 };
+    return {};
   }
 
   function onDeath(run) {
@@ -274,12 +273,14 @@ window.ColoriniRogue = (function () {
     run.hp = BASE_HP;
     run.maxHp = BASE_HP;
     run.alive = true;
-    // Keep freeRestarts / consumables — death does not wipe unused charges
     return { resetToStart: true };
   }
 
   function pickRelicOffers(run, rng, count, movesLeft, movesMax) {
+    // Legacy helper — vendor is primary. Keep a simple rare inject pool.
     const ratio = movesMax > 0 ? movesLeft / movesMax : 0;
+    const legendaryInjectChance =
+      ratio <= 0.15 ? 0.08 : ratio <= 0.35 ? 0.035 : 0.012;
     let commonW = 6;
     let rareW = 2.5;
     if (ratio <= 0.15) {
@@ -288,29 +289,15 @@ window.ColoriniRogue = (function () {
     } else if (ratio <= 0.35) {
       commonW = 4;
       rareW = 3.5;
-    } else if (ratio >= 0.55) {
-      commonW = 8;
-      rareW = 1.5;
     }
 
-    // Legendaries never fill the pool when commons run out — separate rare inject
-    const legendaryInjectChance =
-      ratio <= 0.15 ? 0.08 : ratio <= 0.35 ? 0.035 : 0.012;
-
     let available = POOL.filter((id) => {
-      if (RELICS[id].rarity === "legendary") return false;
-      const n = countRelic(run, id);
-      if (n === 0) return true;
-      if (!isConsumable(id) && STACKABLE.has(id) && n < 2) return true;
-      return false;
+      if (CATALOG[id].rarity === "legendary") return false;
+      return canOwnMore(run, id);
     });
 
-    const weight = (id) => {
-      const r = RELICS[id].rarity;
-      if (r === "common") return commonW;
-      if (r === "rare") return rareW;
-      return 0;
-    };
+    const weight = (id) =>
+      CATALOG[id].rarity === "common" ? commonW : rareW;
 
     const picks = [];
     available = available.slice();
@@ -326,16 +313,15 @@ window.ColoriniRogue = (function () {
           break;
         }
       }
-      picks.push(RELICS[chosen]);
+      picks.push(CATALOG[chosen]);
       available = available.filter((id) => id !== chosen);
     }
 
     if (rng() < legendaryInjectChance) {
       const legends = POOL.filter(
-        (id) => RELICS[id].rarity === "legendary" && countRelic(run, id) === 0
+        (id) => CATALOG[id].rarity === "legendary" && countRelic(run, id) === 0
       );
       if (legends.length) {
-        // Prefer ghost slightly over boss ration
         const lw = legends.map((id) => ({
           id,
           w: LEGENDARY_WEIGHT[id] != null ? LEGENDARY_WEIGHT[id] : 0.2,
@@ -350,11 +336,10 @@ window.ColoriniRogue = (function () {
             break;
           }
         }
-        if (picks.length >= count) picks[picks.length - 1] = RELICS[chosen];
-        else picks.push(RELICS[chosen]);
+        if (picks.length) picks[picks.length - 1] = CATALOG[chosen];
+        else picks.push(CATALOG[chosen]);
       }
     }
-
     return picks;
   }
 
@@ -374,6 +359,34 @@ window.ColoriniRogue = (function () {
     run.pinnedItem = null;
     run.nextFloorMoves = 0;
     run.nextFloorUndos = 0;
+    run.nextFloorPresort = 0;
+  }
+
+  function bankLeftoverMoves(run, movesLeft) {
+    const gained = Math.max(0, movesLeft | 0);
+    run.wallet = (run.wallet || 0) + gained;
+    return gained;
+  }
+
+  function canOwnMore(run, id) {
+    const e = entry(id);
+    if (!e) return false;
+    const n = countRelic(run, id);
+    if (n === 0) return true;
+    if (!e.consumable && STACKABLE.has(id) && n < 2) return true;
+    return false;
+  }
+
+  function inventoryByKind(run) {
+    const relics = [];
+    const items = [];
+    run.relics.forEach((id) => {
+      const e = entry(id);
+      if (!e) return;
+      if (e.kind === "item") items.push(e);
+      else relics.push(e);
+    });
+    return { relics, items };
   }
 
   return {
@@ -381,12 +394,17 @@ window.ColoriniRogue = (function () {
     BASE_HP,
     BASE_UNDOS,
     RELICS,
+    ITEMS,
+    CATALOG,
     createRun,
     hasRelic,
     countRelic,
     isConsumable,
+    isRelicKind,
+    entry,
     consumeRelic,
     applyRelicPickup,
+    armFloorPresort,
     prepareFloorCharges,
     emptyBonus,
     preSortedBonus,
@@ -401,5 +419,6 @@ window.ColoriniRogue = (function () {
     undosForFloor,
     bankLeftoverMoves,
     canOwnMore,
+    inventoryByKind,
   };
 })();

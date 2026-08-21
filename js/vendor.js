@@ -1,27 +1,27 @@
 /**
- * Bottega di Travaso — shop that sells relics for leftover moves (gocce).
+ * Bottega di Travaso — shop for relics (passives) and items (consumables).
  */
 window.ColoriniVendor = (function () {
   "use strict";
 
   const QUOTES = [
+    "Reliquie restano. Oggetti… puff, una volta sola!",
     "Mosse risparmiate, gocce guadagnate!",
-    "Niente è gratis… tranne i consigli cattivi.",
-    "Fissa una merce se ti piace: la tengo da parte.",
-    "Il tappo giusto salva una spedizione intera.",
+    "Fissa una merce: la tengo sul banco speciale.",
+    "Le etichette verdi sono reliquie. Quelle arancio sono oggetti.",
     "Spendi pure, ma non restare a secco.",
-    "Oggi il banco balla: guarda bene le etichette!",
+    "Travaso non rimborsa i tappi aperti.",
     "Una goccia oggi vale una vittoria domani.",
-    "Travaso raccomanda: non versare soldi a caso.",
   ];
 
-  /** Shop-only one-floor buffs */
+  /** Instant shop buffs — not inventory, apply to next floor only. */
   const EXTRAS = {
     sip_pace: {
       id: "sip_pace",
       name: "Sorso di ritmo",
-      desc: "Prossimo piano: +3 mosse (una volta).",
+      desc: "Prossimo piano: +3 mosse.",
       rarity: "common",
+      kind: "item",
       consumable: true,
       cost: 3,
       shopOnly: true,
@@ -29,8 +29,9 @@ window.ColoriniVendor = (function () {
     spare_cork: {
       id: "spare_cork",
       name: "Tappo di ricambio",
-      desc: "Prossimo piano: +1 undo (una volta).",
+      desc: "Prossimo piano: +1 undo.",
       rarity: "common",
+      kind: "item",
       consumable: true,
       cost: 2,
       shopOnly: true,
@@ -38,10 +39,14 @@ window.ColoriniVendor = (function () {
   };
 
   function allCatalog(Rogue) {
-    const items = Object.values(Rogue.RELICS).map((r) =>
+    const relics = Object.values(Rogue.RELICS).map((r) =>
       Object.assign({}, r, { shopOnly: false })
     );
-    return items.concat(Object.values(EXTRAS));
+    const items = Object.values(Rogue.ITEMS).map((r) =>
+      Object.assign({}, r, { shopOnly: false })
+    );
+    const extras = Object.values(EXTRAS);
+    return relics.concat(items, extras);
   }
 
   function quote(rng) {
@@ -49,16 +54,13 @@ window.ColoriniVendor = (function () {
   }
 
   function weightFor(item, ratio) {
-    let w = 1;
-    if (item.rarity === "common") w = 5;
-    else if (item.rarity === "rare") w = 2.5;
-    else w = 0.35;
+    let w = item.rarity === "common" ? 5 : item.rarity === "rare" ? 2.5 : 0.35;
     if (item.rarity === "legendary") {
-      // Still rare on the shelf
       w *= item.id === "boss_ration" ? 0.25 : 0.4;
       if (ratio > 0.4) w *= 0.5;
     }
-    if (item.shopOnly) w *= 1.4;
+    if (item.shopOnly) w *= 1.35;
+    // Prefer showing a mix: slight boost to underrepresented kind in weighting is done in buildStock
     return w;
   }
 
@@ -79,8 +81,12 @@ window.ColoriniVendor = (function () {
       if (pinItem) stock.push(Object.assign({}, pinItem, { pinned: true }));
     }
 
-    let pool = catalog.filter((i) => i.id !== pinned);
-    while (stock.length < slots && pool.length) {
+    // Try to keep at least one relic and one item on the shelf
+    const relics = catalog.filter((i) => i.kind === "relic" && i.id !== pinned);
+    const items = catalog.filter((i) => i.kind === "item" && i.id !== pinned);
+
+    function pickFrom(pool) {
+      if (!pool.length) return null;
       const total = pool.reduce((s, i) => s + weightFor(i, ratio), 0);
       let roll = rng() * total;
       let chosen = pool[0];
@@ -91,6 +97,22 @@ window.ColoriniVendor = (function () {
           break;
         }
       }
+      return chosen;
+    }
+
+    if (stock.length < slots) {
+      const r = pickFrom(relics);
+      if (r) stock.push(Object.assign({}, r, { pinned: false }));
+    }
+    if (stock.length < slots) {
+      const it = pickFrom(items);
+      if (it) stock.push(Object.assign({}, it, { pinned: false }));
+    }
+
+    let pool = catalog.filter((i) => !stock.some((s) => s.id === i.id));
+    while (stock.length < slots && pool.length) {
+      const chosen = pickFrom(pool);
+      if (!chosen) break;
       stock.push(Object.assign({}, chosen, { pinned: false }));
       pool = pool.filter((i) => i.id !== chosen.id);
     }
@@ -117,9 +139,7 @@ window.ColoriniVendor = (function () {
       Rogue.applyRelicPickup(run, item.id);
     }
 
-    // Bought pinned item → clear pin
     if (run.pinnedItem === itemId) run.pinnedItem = null;
-
     return { ok: true, item };
   }
 
