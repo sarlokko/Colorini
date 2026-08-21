@@ -108,18 +108,21 @@
   <div class="overlay vendor-overlay" id="vendorOverlay" hidden>
     <div class="vendor-panel" role="dialog" aria-labelledby="vendorTitle" aria-modal="true">
       <div class="vendor-hero">
-        <div class="vendor-mascot" aria-hidden="true">
-          <span class="mascot-hat"></span>
-          <span class="mascot-bottle">
+        <button type="button" class="vendor-mascot" id="btnTravasoTalk" aria-label="Chiedi un consiglio a Travaso" title="Tocca per un consiglio (inutile)">
+          <span class="mascot-hat" aria-hidden="true"></span>
+          <span class="mascot-bottle" aria-hidden="true">
             <span class="mascot-face"></span>
             <span class="mascot-liquid"></span>
           </span>
-          <span class="mascot-mustache"></span>
-        </div>
+          <span class="mascot-mustache" aria-hidden="true"></span>
+          <span class="mascot-tap-hint" aria-hidden="true">?</span>
+        </button>
         <div class="vendor-intro">
           <p class="modal-kicker">Bottega errante</p>
-          <h2 id="vendorTitle">Travaso</h2>
-          <p class="vendor-quote" id="vendorQuote">Mosse risparmiate, gocce guadagnate!</p>
+          <h2 id="vendorTitle">
+            <button type="button" class="travaso-name" id="btnTravasoName" aria-label="Travaso parla">Travaso</button>
+          </h2>
+          <p class="vendor-quote" id="vendorQuote" aria-live="polite">Mosse risparmiate, gocce guadagnate!</p>
         </div>
         <div class="vendor-wallet" id="vendorWallet" title="Gocce = mosse avanzate">
           <span class="wallet-drop" aria-hidden="true"></span>

@@ -4,14 +4,42 @@
 window.ColoriniVendor = (function () {
   "use strict";
 
-  const QUOTES = [
+  /** Greeting when the shop opens (mildly useful). */
+  const GREETINGS = [
     "Reliquie restano. Oggetti… puff, una volta sola!",
     "Mosse risparmiate, gocce guadagnate!",
     "Fissa una merce: la tengo sul banco speciale.",
-    "Le etichette verdi sono reliquie. Quelle arancio sono oggetti.",
+    "Tocca la mia faccia per… ehm… saggezza gratuita.",
     "Spendi pure, ma non restare a secco.",
-    "Travaso non rimborsa i tappi aperti.",
-    "Una goccia oggi vale una vittoria domani.",
+  ];
+
+  /** Click Travaso for proudly useless tips. */
+  const ADVICE = [
+    "Consiglio ufficiale: versa sempre verso il basso. L’alto è già del cielo.",
+    "Se la bottiglia è piena, non metterci altro. Fidati. È scienza.",
+    "Il mio colore preferito? Quello che ti manca. Sempre.",
+    "Non parlare alle bottiglie. Non rispondono. Io sì, ma a caso.",
+    "Undo è un amico. Undo abusato è un cugino che resta a dormire.",
+    "Le gocce non nuotano: tu le spendi. Poi piangi. Poi ricompri.",
+    "A 0 mosse: respira. Poi muori con stile. Travaso applaude.",
+    "Il boss non ti odia. Ti trova solo… cromaticamente confuso.",
+    "Mai comprare due tappi uguali. A meno che non siano diversi.",
+    "La strategia migliore? Quella che funziona. La seconda? Chiedere a me.",
+    "Oggi i pianeti dicono: compra qualcosa. I pianeti mentono spesso.",
+    "Se versi il rosso sul blu… ottieni un problema. E un bel «ops».",
+    "Il mio baffo contiene saggezza. E briciole di merenda.",
+    "Conta fino a tre prima di versare. Poi versa comunque.",
+    "Le reliquie non fanno colazione. Gli oggetti sì: una volta sola.",
+    "Non fissare il banco troppo a lungo: si imbarazza.",
+    "Ho visto bottiglie più brave di te. Spoiler: eri tu, ieri.",
+    "Goccia dopo goccia si fa… un portafoglio vuoto. Evviva il commercio!",
+    "Se non sai cosa comprare, compra quello che luccica di meno. O di più.",
+    "Travaso garantisce: questo consiglio non ti servirà a niente.",
+    "Mai versare a stomaco vuoto. Le bottiglie lo sentono.",
+    "Il segreto del water sort? L’acqua. E i colori. E… ok, basta.",
+    "Se perdi, digli che è stata colpa del vento. Non c’è vento? Inventalo.",
+    "Pinna una merce solo se ti piace. Oppure se vuoi far arrabbiare il destino.",
+    "Io non giudico. Ok, un po’ sì. Ma con affetto commerciale.",
   ];
 
   /** Instant shop buffs — not inventory, apply to next floor only. */
@@ -49,8 +77,25 @@ window.ColoriniVendor = (function () {
     return relics.concat(items, extras);
   }
 
+  function pickLine(pool, rng, avoid) {
+    if (!pool.length) return "";
+    let line = pool[Math.floor(rng() * pool.length)];
+    if (pool.length > 1 && avoid && line === avoid) {
+      line = pool[Math.floor(rng() * pool.length)];
+      if (line === avoid) {
+        const alt = pool.filter((q) => q !== avoid);
+        line = alt[Math.floor(rng() * alt.length)] || line;
+      }
+    }
+    return line;
+  }
+
   function quote(rng) {
-    return QUOTES[Math.floor(rng() * QUOTES.length)];
+    return pickLine(GREETINGS, rng);
+  }
+
+  function advice(rng, avoid) {
+    return pickLine(ADVICE, rng, avoid);
   }
 
   function weightFor(item, ratio) {
@@ -154,8 +199,11 @@ window.ColoriniVendor = (function () {
 
   return {
     EXTRAS,
+    GREETINGS,
+    ADVICE,
     allCatalog,
     quote,
+    advice,
     buildStock,
     buy,
     togglePin,

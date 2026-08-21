@@ -815,6 +815,88 @@ body {
   width: 72px;
   height: 88px;
   flex-shrink: 0;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 16px;
+  transition: transform 0.2s var(--ease-spring);
+}
+
+.vendor-mascot:hover {
+  transform: translateY(-3px) rotate(-2deg);
+}
+
+.vendor-mascot:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.vendor-mascot.is-talking {
+  animation: travaso-bob 0.55s var(--ease-spring);
+}
+
+.mascot-tap-hint {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  background: #ea580c;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 900;
+  line-height: 1.15rem;
+  text-align: center;
+  box-shadow: 0 2px 0 #9a3412;
+  z-index: 3;
+  pointer-events: none;
+  animation: hint-wiggle 2.4s ease-in-out infinite;
+}
+
+.travaso-name {
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.travaso-name:hover {
+  color: #c2410c;
+}
+
+.travaso-name:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.vendor-quote.quote-pop {
+  animation: quote-pop 0.4s var(--ease-spring);
+}
+
+@keyframes travaso-bob {
+  0% { transform: translateY(0) rotate(0); }
+  30% { transform: translateY(-6px) rotate(4deg); }
+  55% { transform: translateY(2px) rotate(-3deg); }
+  100% { transform: translateY(0) rotate(0); }
+}
+
+@keyframes hint-wiggle {
+  0%, 85%, 100% { transform: scale(1) rotate(0); }
+  90% { transform: scale(1.12) rotate(8deg); }
+  95% { transform: scale(1.08) rotate(-6deg); }
+}
+
+@keyframes quote-pop {
+  0% { opacity: 0.35; transform: translateY(4px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
 
 .mascot-hat {

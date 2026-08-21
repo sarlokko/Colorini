@@ -51,6 +51,8 @@
   const vendorQuote = document.getElementById("vendorQuote");
   const vendorWalletAmount = document.getElementById("vendorWalletAmount");
   const btnVendorLeave = document.getElementById("btnVendorLeave");
+  const btnTravasoTalk = document.getElementById("btnTravasoTalk");
+  const btnTravasoName = document.getElementById("btnTravasoName");
   const relicGrid = document.getElementById("relicGrid");
 
   const runOverlay = document.getElementById("runOverlay");
@@ -733,7 +735,6 @@
     const rng = Proc.mulberry32(
       (run.seed ^ ((run.floor + 77) * 2246822519) ^ (run.deathCycle * 17)) >>> 0
     );
-    if (vendorQuote) vendorQuote.textContent = Vendor.quote(rng);
     if (vendorWalletAmount) vendorWalletAmount.textContent = String(run.wallet || 0);
 
     const stock = Vendor.buildStock(run, Rogue, rng, 4);
@@ -830,8 +831,27 @@
       endRun(true);
       return;
     }
+    if (vendorQuote) delete vendorQuote.dataset.chatting;
     renderVendorShelf();
     vendorOverlay.hidden = false;
+  }
+
+  function travasoSayAdvice() {
+    if (!Vendor || !vendorQuote) return;
+    const run = state.run;
+    const salt = (Date.now() ^ ((run && run.wallet) || 0) * 9973) >>> 0;
+    const rng = Proc.mulberry32(salt);
+    const next = Vendor.advice(rng, vendorQuote.textContent);
+    vendorQuote.dataset.chatting = "1";
+    vendorQuote.textContent = next;
+    vendorQuote.classList.remove("quote-pop");
+    void vendorQuote.offsetWidth;
+    vendorQuote.classList.add("quote-pop");
+    if (btnTravasoTalk) {
+      btnTravasoTalk.classList.remove("is-talking");
+      void btnTravasoTalk.offsetWidth;
+      btnTravasoTalk.classList.add("is-talking");
+    }
   }
 
   function leaveVendor() {
@@ -915,6 +935,13 @@
 
   if (btnVendorLeave) {
     btnVendorLeave.addEventListener("click", leaveVendor);
+  }
+
+  if (btnTravasoTalk) {
+    btnTravasoTalk.addEventListener("click", travasoSayAdvice);
+  }
+  if (btnTravasoName) {
+    btnTravasoName.addEventListener("click", travasoSayAdvice);
   }
 
   btnNewRun.addEventListener("click", () => {
