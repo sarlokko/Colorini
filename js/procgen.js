@@ -5,8 +5,8 @@ window.ColoriniProcgen = (function () {
   "use strict";
 
   const ALL_COLORS = [
-    "red", "orange", "amber", "yellow", "lime", "green",
-    "teal", "sky", "blue", "indigo", "pink", "rose",
+    "red", "orange", "yellow", "green", "cyan", "blue",
+    "purple", "magenta", "brown", "cream", "navy", "coral",
   ];
 
   function mulberry32(seed) {
@@ -163,28 +163,7 @@ window.ColoriniProcgen = (function () {
       prev = order;
     }
 
-    // Extra adversarial pours: prefer moves that increase fragmentation
-    const pourBudget = 8 + twist * 10;
-    for (let m = 0; m < pourBudget; m++) {
-      const candidates = [];
-      for (let i = 0; i < bottles.length; i++) {
-        for (let j = 0; j < bottles.length; j++) {
-          if (i === j || !canPour(bottles[i], bottles[j], capacity)) continue;
-          // score: breaking a run / filling a mixed bottle
-          let score = 1;
-          if (topRun(bottles[i]) === 1) score += 2;
-          if (bottles[j].length && countRuns(bottles[j]) >= 2) score += 2;
-          if (!bottles[j].length && topRun(bottles[i]) <= 2) score += 3;
-          candidates.push([i, j, score]);
-        }
-      }
-      if (!candidates.length) break;
-      candidates.sort((a, b) => b[2] - a[2]);
-      const topN = candidates.slice(0, Math.min(5, candidates.length));
-      const pick = topN[Math.floor(rng() * topN.length)];
-      pour(bottles[pick[0]], bottles[pick[1]], capacity, 1);
-    }
-
+    // Keep layered stacks intact — extra pours tend to re-sort and make puzzles trivial.
     return bottles;
   }
 
@@ -219,54 +198,237 @@ window.ColoriniProcgen = (function () {
     });
   }
 
+  function stateKey(bottles) {
+    return bottles.map((b) => b.join(",")).join("|");
+  }
+
+  function legalGameMoves(bottles, capacity, opts) {
+    const allowFinishedToEmpty = opts && opts.allowFinishedToEmpty;
+    const moves = [];
+    for (let i = 0; i < bottles.length; i++) {
+      for (let j = 0; j < bottles.length; j++) {
+        if (i === j) continue;
+        if (!canPour(bottles[i], bottles[j], capacity)) continue;
+        if (
+          !allowFinishedToEmpty &&
+          isUniformFull(bottles[i], capacity) &&
+          bottles[j].length === 0
+        ) {
+          continue;
+        }
+        moves.push([i, j]);
+      }
+    }
+    return moves;
+  }
+
+  function applyGamePour(bottles, i, j, capacity) {
+    const next = clone(bottles);
+    pour(next[i], next[j], capacity);
+    return next;
+  }
+
+  /** Scramble always moves 1 unit to create fine-grained mess. */
+  function applyScramblePour(bottles, i, j, capacity) {
+    const next = clone(bottles);
+    pour(next[i], next[j], capacity, 1);
+    return next;
+  }
+
+  /** Shortest solution length (game pours), or -1 if budget exhausted. */
+  function bfsMinMoves(bottles, capacity, maxStates) {
+    if (isSolved(bottles, capacity)) return 0;
+    const start = clone(bottles);
+    const dist = new Map([[stateKey(start), 0]]);
+    const q = [start];
+    let head = 0;
+    while (head < q.length && dist.size < maxStates) {
+      const cur = q[head++];
+      const d = dist.get(stateKey(cur));
+      const moves = legalGameMoves(cur, capacity);
+      for (let m = 0; m < moves.length; m++) {
+        const next = applyGamePour(cur, moves[m][0], moves[m][1], capacity);
+        const k = stateKey(next);
+        if (dist.has(k)) continue;
+        const nd = d + 1;
+        if (isSolved(next, capacity)) return nd;
+        dist.set(k, nd);
+        q.push(next);
+      }
+    }
+    return -1;
+  }
+
+  function scoreMove(bottles, i, j, capacity) {
+    const src = bottles[i];
+    const dst = bottles[j];
+    const amt = Math.min(capacity - dst.length, topRun(src));
+    let s = 0;
+    if (dst.length && top(dst) === top(src)) s += 20;
+    if (dst.length + amt === capacity) s += 40;
+    if (src.length === amt) s += 8;
+    if (!dst.length) s += 3;
+    // Prefer consolidating single-unit tops
+    if (topRun(src) === 1) s += 5;
+    return s;
+  }
+
+  /** Approximate upper bound via repeated greedy play. */
+  function greedyMinMoves(bottles, capacity, rng, trials, maxMoves) {
+    let best = Infinity;
+    for (let t = 0; t < trials; t++) {
+      let cur = clone(bottles);
+      let steps = 0;
+      let stuck = false;
+      while (!isSolved(cur, capacity) && steps < maxMoves) {
+        const moves = legalGameMoves(cur, capacity);
+        if (!moves.length) {
+          stuck = true;
+          break;
+        }
+        let bestScore = -Infinity;
+        let picks = [];
+        for (let m = 0; m < moves.length; m++) {
+          const sc = scoreMove(cur, moves[m][0], moves[m][1], capacity) + rng() * 0.5;
+          if (sc > bestScore + 1e-9) {
+            bestScore = sc;
+            picks = [moves[m]];
+          } else if (Math.abs(sc - bestScore) < 1e-9) {
+            picks.push(moves[m]);
+          }
+        }
+        const pick = picks[Math.floor(rng() * picks.length)];
+        cur = applyGamePour(cur, pick[0], pick[1], capacity);
+        steps++;
+      }
+      if (!stuck && isSolved(cur, capacity) && steps < best) best = steps;
+    }
+    return best === Infinity ? -1 : best;
+  }
+
+  /**
+   * Best-known solution length for move budget.
+   * Prefer BFS optimum; fall back to greedy upper bound.
+   */
+  function estimateMinMoves(bottles, capacity, rng) {
+    const n = bottles.length;
+    const maxStates = n <= 7 ? 400000 : n <= 10 ? 220000 : 120000;
+    const exact = bfsMinMoves(bottles, capacity, maxStates);
+    if (exact >= 0) return { moves: exact, exact: true };
+
+    const trials = n <= 8 ? 120 : 60;
+    const cap = 90;
+    const approx = greedyMinMoves(bottles, capacity, rng || mulberry32(1), trials, cap);
+    if (approx >= 0) return { moves: approx, exact: false };
+
+    // Last resort heuristic: unfinished bottles * 3
+    const messy = bottles.filter((b) => b.length && !isUniformFull(b, capacity)).length;
+    return { moves: Math.max(8, messy * 3 + 4), exact: false };
+  }
+
+  function moveSlack(spec) {
+    if (!spec) return 2;
+    if (spec.floorIndex != null && spec.floorIndex === 0) return 3;
+    return 2;
+  }
+
   function generatePuzzle(rng, opts) {
     const capacity = opts.capacity || 4;
     const colorCount = opts.colors;
     const emptyCount = opts.empty;
-    const scrambleMoves = opts.scramble || 0;
+    const depth = opts.depth != null ? opts.depth : opts.scramble || 12;
     const preSorted = opts.preSorted || 0;
-    const style = opts.style || "gentle"; // gentle | layered | nightmare
+    const style = opts.style || "gentle";
     const twist = opts.twist || 0;
+    const minOptimal = opts.minOptimal || 0;
 
     const used = shuffle(ALL_COLORS, rng).slice(0, colorCount);
-
     let bottles;
+
     if (style === "gentle") {
-      bottles = scrambleFromSolved(used, capacity, emptyCount, scrambleMoves, rng);
+      bottles = used.map((c) => Array(capacity).fill(c));
+      for (let i = 0; i < emptyCount; i++) bottles.push([]);
+      let done = 0;
+      let guard = 0;
+      while (done < depth && guard < depth * 100) {
+        guard++;
+        const moves = legalGameMoves(bottles, capacity, { allowFinishedToEmpty: true });
+        if (!moves.length) break;
+        const ranked = moves.map(([i, j]) => {
+          const next = applyScramblePour(bottles, i, j, capacity);
+          let gain = fragmentation(next) - fragmentation(bottles);
+          if (isSolved(next, capacity)) gain -= 100;
+          const rebuilt = next.some(
+            (b, idx) =>
+              b.length === capacity &&
+              isUniformFull(b, capacity) &&
+              !(bottles[idx].length === capacity && isUniformFull(bottles[idx], capacity))
+          );
+          if (rebuilt) gain -= 20;
+          return [i, j, gain + rng() * 0.2];
+        });
+        ranked.sort((a, b) => b[2] - a[2]);
+        const pick = ranked[Math.floor(rng() * Math.min(4, ranked.length))];
+        bottles = applyScramblePour(bottles, pick[0], pick[1], capacity);
+        done++;
+      }
     } else {
-      bottles = buildLayered(used, capacity, emptyCount, rng, twist);
-      // nightmare gets an extra fragmentation pass
+      // Layered rainbow stacks — hard and not accidentally near-solved
+      bottles = buildLayered(used, capacity, emptyCount, rng, Math.max(2, twist));
       if (style === "nightmare") {
-        const extra = 18 + twist * 8;
-        for (let m = 0; m < extra; m++) {
-          const candidates = [];
-          const before = fragmentation(bottles);
-          for (let i = 0; i < bottles.length; i++) {
-            for (let j = 0; j < bottles.length; j++) {
-              if (i === j || !canPour(bottles[i], bottles[j], capacity)) continue;
-              // simulate 1 pour
-              const a = clone(bottles);
-              pour(a[i], a[j], capacity, 1);
-              const gain = fragmentation(a) - before;
-              if (gain >= 0) candidates.push([i, j, gain + rng()]);
-            }
-          }
-          if (!candidates.length) break;
-          candidates.sort((x, y) => y[2] - x[2]);
-          const [i, j] = candidates[0];
-          pour(bottles[i], bottles[j], capacity, 1);
+        // Tiny chaos only: 2–4 one-unit pours into empties to break perfect patterns
+        const moves = legalGameMoves(bottles, capacity, { allowFinishedToEmpty: true });
+        const intoEmpty = moves.filter(([, j]) => bottles[j].length === 0);
+        const pool = intoEmpty.length ? intoEmpty : moves;
+        const nChaos = Math.min(4, pool.length);
+        for (let m = 0; m < nChaos; m++) {
+          const pick = pool[Math.floor(rng() * pool.length)];
+          bottles = applyScramblePour(bottles, pick[0], pick[1], capacity);
         }
       }
     }
 
-    let guard = 0;
-    while (isSolved(bottles, capacity) && guard < 80) {
-      guard++;
-      bottles = scrambleFromSolved(used, capacity, emptyCount, 12 + guard, rng);
+    let guardSolved = 0;
+    while (isSolved(bottles, capacity) && guardSolved < 80) {
+      guardSolved++;
+      const moves = legalGameMoves(bottles, capacity, { allowFinishedToEmpty: true });
+      if (!moves.length) break;
+      const pick = moves[Math.floor(rng() * moves.length)];
+      bottles = applyScramblePour(bottles, pick[0], pick[1], capacity);
     }
 
     bottles = applyPreSorted(bottles, used, capacity, preSorted, rng);
     bottles = trimEmpties(bottles, emptyCount);
+
+    if (minOptimal > 0) {
+      let attempts = 0;
+      let est = estimateMinMoves(bottles, capacity, rng);
+      while (est.moves < minOptimal && attempts < 40) {
+        attempts++;
+        // Force-split a finished bottle if any
+        const fulls = [];
+        const empties = [];
+        for (let i = 0; i < bottles.length; i++) {
+          if (isUniformFull(bottles[i], capacity)) fulls.push(i);
+          if (!bottles[i].length) empties.push(i);
+        }
+        if (fulls.length && empties.length) {
+          const fi = fulls[Math.floor(rng() * fulls.length)];
+          const ei = empties[Math.floor(rng() * empties.length)];
+          bottles = applyScramblePour(bottles, fi, ei, capacity);
+        }
+        const moves = legalGameMoves(bottles, capacity, { allowFinishedToEmpty: true });
+        if (moves.length) {
+          const ranked = moves.map(([i, j]) => {
+            const next = applyScramblePour(bottles, i, j, capacity);
+            return [i, j, fragmentation(next) - fragmentation(bottles) + rng()];
+          });
+          ranked.sort((a, b) => b[2] - a[2]);
+          bottles = applyScramblePour(bottles, ranked[0][0], ranked[0][1], capacity);
+        }
+        est = estimateMinMoves(bottles, capacity, rng);
+      }
+    }
 
     return {
       capacity,
@@ -274,11 +436,12 @@ window.ColoriniProcgen = (function () {
       colors: used,
       name: opts.name || "Piano",
       style,
+      depth,
     };
   }
 
   /**
-   * Brutal curve: early already layered, 1-empty from floor 3, tight move caps.
+   * Hard curve. `depth` = scramble pours (solution scale); move budget comes from solver.
    */
   function floorSpec(floorIndex, totalFloors) {
     const last = totalFloors - 1;
@@ -287,90 +450,93 @@ window.ColoriniProcgen = (function () {
     const isMini = floorIndex === midBoss;
     const isBoss = isFinal || isMini;
 
-    // defaults
     let colors = 4;
     let empty = 1;
-    let scramble = 0;
     let style = "layered";
     let twist = 3;
     let baseUndos = 1;
-    let moveLimit = 18;
+    let depth = 20;
+    let minOptimal = 8;
 
     if (floorIndex === 0) {
-      colors = 4;
-      empty = 2;
-      style = "gentle";
-      scramble = 22;
-      twist = 1;
-      baseUndos = 2;
-      moveLimit = 20;
-    } else if (floorIndex === 1) {
-      colors = 5;
+      colors = 3;
       empty = 2;
       style = "layered";
-      twist = 3;
+      depth = 12;
+      minOptimal = 5;
+      baseUndos = 2;
+      twist = 2;
+    } else if (floorIndex === 1) {
+      colors = 4;
+      empty = 2;
+      style = "layered";
+      depth = 16;
+      minOptimal = 8;
       baseUndos = 1;
-      moveLimit = 22;
+      twist = 2;
     } else if (floorIndex === 2) {
       colors = 5;
       empty = 1;
       style = "layered";
-      twist = 4;
-      baseUndos = 1;
-      moveLimit = 22;
+      depth = 20;
+      minOptimal = 12;
+      twist = 3;
     } else if (floorIndex === 3) {
       colors = 6;
       empty = 1;
       style = "layered";
-      twist = 5;
-      baseUndos = 1;
-      moveLimit = 24;
+      depth = 24;
+      minOptimal = 14;
+      twist = 3;
     } else if (floorIndex === 4) {
       colors = 7;
       empty = 1;
       style = "layered";
-      twist = 6;
-      baseUndos = 1;
-      moveLimit = 26;
+      depth = 28;
+      minOptimal = 16;
+      twist = 4;
     } else if (!isBoss) {
       const after = Math.max(0, floorIndex - midBoss);
       colors = Math.min(ALL_COLORS.length - 1, 9 + Math.floor(after * 0.5));
       empty = 1;
       style = "layered";
-      twist = 8 + after;
+      depth = 32 + after * 2;
+      minOptimal = 18 + after;
+      twist = 5 + after;
       baseUndos = 1;
-      moveLimit = colors * 3 + 1;
     }
 
     if (isMini) {
       colors = 9;
       empty = 1;
       style = "layered";
-      twist = 9;
+      depth = 36;
+      minOptimal = 22;
+      twist = 6;
       baseUndos = 1;
-      moveLimit = 28;
-      scramble = 0;
     }
 
     if (isFinal) {
-      colors = ALL_COLORS.length; // 12
+      colors = ALL_COLORS.length;
       empty = 1;
       style = "nightmare";
-      twist = 16;
+      depth = 40;
+      minOptimal = 28;
+      twist = 8;
       baseUndos = 1;
-      moveLimit = 36;
-      scramble = 0;
     }
 
     return {
       colors,
       empty,
-      scramble,
+      scramble: depth,
+      depth,
+      minOptimal,
       capacity: 4,
       style,
       twist,
       baseUndos,
-      moveLimit,
+      moveLimit: minOptimal + 4,
       isBoss,
       isFinal,
       name: isFinal
@@ -391,5 +557,8 @@ window.ColoriniProcgen = (function () {
     isSolved,
     isUniformFull,
     fragmentation,
+    estimateMinMoves,
+    bfsMinMoves,
+    moveSlack,
   };
 })();

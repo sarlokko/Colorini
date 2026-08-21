@@ -364,7 +364,7 @@
   function startFloor() {
     const run = state.run;
     const spec = Proc.floorSpec(run.floor, run.totalFloors);
-    Rogue.prepareFloorCharges(run, spec);
+    spec.floorIndex = run.floor;
     // New layout each attempt / death cycle
     const rng = Proc.mulberry32(
       (run.seed ^ (run.floor * 2654435761) ^ (run.deathCycle * 40503)) >>> 0
@@ -374,28 +374,44 @@
     const puzzle = Proc.generatePuzzle(rng, {
       colors: spec.colors,
       empty: Math.max(1, spec.empty + extraEmpty),
-      scramble: spec.scramble,
+      scramble: spec.depth || spec.scramble,
+      depth: spec.depth || spec.scramble,
+      minOptimal: spec.minOptimal || 0,
       capacity: spec.capacity,
       style: spec.style,
       twist: spec.twist,
       preSorted: Rogue.preSortedBonus(run, spec),
       name: spec.name,
     });
+
+    const estimate = Proc.estimateMinMoves(puzzle.bottles, puzzle.capacity, rng);
+    const opt = Math.max(1, estimate.moves);
+    const slack = Proc.moveSlack(spec);
+    const computed = opt + slack;
+    spec.moveLimit = computed;
+
+    Rogue.prepareFloorCharges(run, spec);
+
     puzzle.isBoss = spec.isBoss;
     puzzle.isFinal = spec.isFinal;
     puzzle.baseUndos = spec.baseUndos;
     puzzle.empty = Math.max(1, spec.empty + extraEmpty);
+    puzzle.optimalMoves = estimate.moves;
+    puzzle.exactOptimal = estimate.exact;
+    puzzle.moveLimit = computed;
     state.mode = "rogue";
     loadPuzzle(puzzle.bottles, puzzle.capacity, puzzle);
+
+    const optLabel = estimate.exact ? `ottimo ${estimate.moves}` : `~${estimate.moves}`;
     if (spec.isFinal) {
       setHint(
-        `Boss finale · ${run.movesLeft} mosse · 12 colori · 1 vuoto.`,
+        `Boss · ${run.movesLeft} mosse (${optLabel}+${slack}) · 12 colori.`,
         true
       );
     } else if (spec.isBoss) {
-      setHint(`Mini-boss · ${run.movesLeft} mosse. Non sprecare.`, true);
+      setHint(`Mini-boss · ${run.movesLeft} mosse (${optLabel}+${slack}).`, true);
     } else {
-      setHint(`Piano ${run.floor + 1} · ${run.movesLeft} mosse.`, true);
+      setHint(`Piano ${run.floor + 1} · ${run.movesLeft} mosse (${optLabel}+${slack}).`, true);
     }
   }
 
