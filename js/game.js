@@ -26,6 +26,8 @@
   const hud = document.getElementById("hud");
   const hudHearts = document.getElementById("hudHearts");
   const hudUndos = document.getElementById("hudUndos");
+  const hudMoves = document.getElementById("hudMoves");
+  const hudMovesWrap = document.getElementById("hudMovesWrap");
   const hudScore = document.getElementById("hudScore");
   const hudRelics = document.getElementById("hudRelics");
 
@@ -246,12 +248,22 @@
         ? state.puzzleMeta.name + (state.puzzleMeta.isBoss ? " ⚔" : "")
         : "Spedizione";
       hudUndos.textContent = String(state.run.undosLeft);
+      if (hudMoves) {
+        hudMoves.textContent = String(state.run.movesLeft);
+      }
+      if (hudMovesWrap) {
+        hudMovesWrap.classList.remove("is-low", "is-critical");
+        const ratio =
+          state.run.movesMax > 0 ? state.run.movesLeft / state.run.movesMax : 1;
+        if (state.run.movesLeft <= 3) hudMovesWrap.classList.add("is-critical");
+        else if (ratio <= 0.3) hudMovesWrap.classList.add("is-low");
+      }
       hudScore.textContent = String(state.run.score);
       renderHearts();
       renderRelicHud();
       restartLabel.textContent =
         state.run.freeRestarts > 0 ? "Free" : "☠ Muori";
-      btnHint.hidden = !(state.run.hintsLeft > 0);
+      btnHint.hidden = true;
       btnUndo.disabled =
         state.busy || state.history.length === 0 || state.run.undosLeft <= 0;
     } else {
@@ -376,9 +388,14 @@
     state.mode = "rogue";
     loadPuzzle(puzzle.bottles, puzzle.capacity, puzzle);
     if (spec.isFinal) {
-      setHint("Boss finale: un solo vuoto, colori intrecciati. Occhio agli undo.", true);
+      setHint(
+        `Boss finale · ${run.movesLeft} mosse · 12 colori · 1 vuoto.`,
+        true
+      );
     } else if (spec.isBoss) {
-      setHint("Mini-boss: layout mirato, spazio risicato.", true);
+      setHint(`Mini-boss · ${run.movesLeft} mosse. Non sprecare.`, true);
+    } else {
+      setHint(`Piano ${run.floor + 1} · ${run.movesLeft} mosse.`, true);
     }
   }
 
@@ -419,11 +436,24 @@
         return;
       }
       state.run.undosLeft -= 1;
+      // Undo restores the spent move
+      state.run.movesLeft = Math.min(state.run.movesMax, state.run.movesLeft + 1);
     }
     state.bottles = state.history.pop();
     state.selected = null;
     setHint("Mossa annullata.", true);
     render();
+  }
+
+  function dieFromMoves() {
+    if (!state.run) return;
+    Rogue.onDeath(state.run);
+    hideOverlays();
+    setHint(
+      `Mosse finite — morte #${state.run.deaths}. Piano 1, reliquie tenute.`,
+      true
+    );
+    startFloor();
   }
 
   function restartPuzzle() {
@@ -442,7 +472,6 @@
         render();
         return;
       }
-      // One life: death → floor 1, relics kept until the run is won
       Rogue.onDeath(state.run);
       hideOverlays();
       setHint(
@@ -458,16 +487,7 @@
   }
 
   function useHint() {
-    if (state.mode !== "rogue" || !state.run || state.run.hintsLeft <= 0) return;
-    const move = findHintMove();
-    if (!move) {
-      setHint("Nessuna mossa ovvia.", true);
-      return;
-    }
-    state.run.hintsLeft -= 1;
-    state.selected = move[0];
-    setHint(`Prova bottiglia ${move[0] + 1} → ${move[1] + 1}.`, true);
-    render();
+    /* Hint removed — difficulty is move-budget based */
   }
 
   function sleep(ms) {
@@ -561,6 +581,16 @@
       return;
     }
 
+    if (state.mode === "rogue" && state.run && state.run.movesLeft <= 0) {
+      if (Rogue.tryLastGasp(state.run)) {
+        setHint("Ultimo sussulto: +3 mosse!", true);
+        updateChrome();
+      } else {
+        dieFromMoves();
+        return;
+      }
+    }
+
     const amount = pourAmount(from, to, state.capacity);
     const color = topColor(state.bottles[from]);
     pushHistory();
@@ -580,13 +610,30 @@
       await animatePour(from, to, amount, color);
     }
 
+    if (state.mode === "rogue" && state.run) {
+      state.run.movesLeft = Math.max(0, state.run.movesLeft - 1);
+    }
+
     state.busy = false;
     render();
 
     if (isSolved(state.bottles, state.capacity)) {
       onWin();
+    } else if (
+      state.mode === "rogue" &&
+      state.run &&
+      state.run.movesLeft <= 0
+    ) {
+      if (Rogue.tryLastGasp(state.run)) {
+        setHint("Ultimo sussulto: +3 mosse!", true);
+        updateChrome();
+      } else {
+        dieFromMoves();
+      }
     } else {
-      setHint("Tocca una bottiglia, poi dove versare.");
+      const left =
+        state.mode === "rogue" && state.run ? ` · ${state.run.movesLeft} mosse` : "";
+      setHint("Tocca una bottiglia, poi dove versare." + left);
     }
   }
 
@@ -596,9 +643,14 @@
     });
 
     if (state.mode === "rogue" && state.run) {
+      const thrift = Rogue.onFloorCleared(
+        state.run,
+        state.run.movesLeft,
+        state.run.movesMax
+      );
       const gained = Rogue.floorScore(
-        state.run.undosLeft,
-        state.run.undosFloorBase,
+        state.run.movesLeft,
+        state.run.movesMax,
         state.run.floor
       );
       state.run.score += gained;
@@ -612,7 +664,10 @@
             ? "Boss sconfitto"
             : "Piano netto";
       winTitle.textContent = "Colori in ordine!";
-      winText.textContent = `+${gained} pt · Totale ${state.run.score}.`;
+      const thriftMsg = thrift.thriftBonus
+        ? ` · Parsimonia +${thrift.thriftBonus} mosse permanenti`
+        : "";
+      winText.textContent = `+${gained} pt · ${state.run.movesLeft}/${state.run.movesMax} mosse residue${thriftMsg}.`;
       btnReplay.hidden = true;
       btnContinue.textContent =
         state.run.floor >= state.run.totalFloors - 1 ? "Vittoria" : "Scegli reliquia";
@@ -643,7 +698,25 @@
       return;
     }
     const rng = Proc.mulberry32((run.seed ^ ((run.floor + 99) * 1597334677)) >>> 0);
-    const offers = Rogue.pickRelicOffers(run, rng, 3);
+    const offers = Rogue.pickRelicOffers(
+      run,
+      rng,
+      3,
+      run.lastClearMovesLeft,
+      run.lastClearMovesMax
+    );
+    const ratio =
+      run.lastClearMovesMax > 0
+        ? run.lastClearMovesLeft / run.lastClearMovesMax
+        : 1;
+    const lootHint =
+      ratio <= 0.15
+        ? "Clear al limite — bottino alto."
+        : ratio >= 0.55
+          ? "Clear comodo — bottino comune."
+          : "Scegli con cura.";
+    document.querySelector("#relicOverlay .modal-text").textContent = lootHint;
+
     relicGrid.replaceChildren();
     offers.forEach((relic) => {
       const card = document.createElement("button");

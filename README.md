@@ -1,19 +1,14 @@
 # Colorini
 
-Puzzle **water sort** con modalità **rogue-like**, in puro HTML/CSS/JS.
+Water sort **rogue-like** hardcore (HTML/CSS/JS).
 
-## Spedizione (rogue)
+## Spedizione
 
-- **12 piani** con curva ripida: inizio soft, poi layout a colori intrecciati
-- **1 sola vita** — il pulsante ☠ Muori ti riporta al piano 1
-- **Le reliquie restano** dopo ogni morte, finché non completi la run (poi si consumano)
-- Undo pochi sui piani alti; boss finale in stile *nightmare* (11 colori, 1 vuoto)
-- Mini-boss a metà run
+- **Limite mosse** per piano (finirle = morte)
+- **1 vita** → morte torna al piano 1, **reliquie tenute** fino al clear
+- Reliquie basate sulle mosse; clear stretti = bottino migliore
+- 12 piani, 1 vuoto presto, boss finale 12 colori / 36 mosse
 
 ## Archivio
 
-Livelli classici fissi, undo illimitati.
-
-## GitHub Pages
-
-Branch `main`, cartella `/ (root)`.
+Livelli classici senza limite mosse.

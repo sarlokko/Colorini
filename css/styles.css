@@ -688,10 +688,26 @@ body {
   backdrop-filter: blur(8px);
 }
 
-.hud-label {
-  color: var(--ink-soft);
-  font-weight: 700;
-  margin-right: 0.2rem;
+.hud-stat.hud-moves strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-stat.hud-moves.is-low {
+  color: #9f1239;
+  border-color: rgba(225, 29, 72, 0.35);
+  background: rgba(255, 241, 242, 0.9);
+}
+
+.hud-stat.hud-moves.is-critical {
+  color: #fff;
+  background: linear-gradient(145deg, #e11d48, #be123c);
+  border-color: transparent;
+  animation: moves-pulse 0.9s ease infinite;
+}
+
+@keyframes moves-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
 }
 
 .hud-relics {
@@ -864,7 +880,8 @@ body {
   .bottle.untilt,
   .stream.active,
   .modal,
-  .overlay {
+  .overlay,
+  .hud-stat.hud-moves.is-critical {
     animation: none !important;
   }
 

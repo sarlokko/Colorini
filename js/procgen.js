@@ -164,7 +164,7 @@ window.ColoriniProcgen = (function () {
     }
 
     // Extra adversarial pours: prefer moves that increase fragmentation
-    const pourBudget = 4 + twist * 8;
+    const pourBudget = 8 + twist * 10;
     for (let m = 0; m < pourBudget; m++) {
       const candidates = [];
       for (let i = 0; i < bottles.length; i++) {
@@ -237,7 +237,7 @@ window.ColoriniProcgen = (function () {
       bottles = buildLayered(used, capacity, emptyCount, rng, twist);
       // nightmare gets an extra fragmentation pass
       if (style === "nightmare") {
-        const extra = 10 + twist * 6;
+        const extra = 18 + twist * 8;
         for (let m = 0; m < extra; m++) {
           const candidates = [];
           const before = fragmentation(bottles);
@@ -278,8 +278,7 @@ window.ColoriniProcgen = (function () {
   }
 
   /**
-   * Steep difficulty curve: easy start → targeted layered mid → nightmare finale.
-   * floorIndex is 0-based.
+   * Brutal curve: early already layered, 1-empty from floor 3, tight move caps.
    */
   function floorSpec(floorIndex, totalFloors) {
     const last = totalFloors - 1;
@@ -287,76 +286,79 @@ window.ColoriniProcgen = (function () {
     const isFinal = floorIndex === last;
     const isMini = floorIndex === midBoss;
     const isBoss = isFinal || isMini;
-    const t = floorIndex / Math.max(1, last);
 
-    let colors;
-    let empty;
-    let scramble;
-    let style;
-    let twist;
-    let baseUndos;
+    // defaults
+    let colors = 4;
+    let empty = 1;
+    let scramble = 0;
+    let style = "layered";
+    let twist = 3;
+    let baseUndos = 1;
+    let moveLimit = 18;
 
     if (floorIndex === 0) {
-      colors = 3;
-      empty = 2;
-      scramble = 10;
-      style = "gentle";
-      twist = 0;
-      baseUndos = 5;
-    } else if (floorIndex === 1) {
-      colors = 3;
-      empty = 2;
-      scramble = 18;
-      style = "gentle";
-      twist = 0;
-      baseUndos = 4;
-    } else if (floorIndex === 2) {
       colors = 4;
       empty = 2;
-      scramble = 28;
       style = "gentle";
+      scramble = 22;
       twist = 1;
-      baseUndos = 4;
-    } else if (floorIndex <= 4) {
-      colors = 5 + (floorIndex - 3);
-      empty = 2;
-      scramble = 0;
-      style = "layered";
-      twist = 2 + (floorIndex - 3);
-      baseUndos = 3;
-    } else if (!isBoss && floorIndex < last) {
-      // After mid-boss: never ease up — climb toward the finale
-      const after = floorIndex - midBoss;
-      colors = Math.min(10, 8 + Math.floor(after * 0.6));
-      empty = after >= 2 ? 1 : 1;
-      scramble = 0;
-      style = "layered";
-      twist = 6 + after;
       baseUndos = 2;
-    } else {
-      colors = 7;
+      moveLimit = 20;
+    } else if (floorIndex === 1) {
+      colors = 5;
+      empty = 2;
+      style = "layered";
+      twist = 3;
+      baseUndos = 1;
+      moveLimit = 22;
+    } else if (floorIndex === 2) {
+      colors = 5;
       empty = 1;
-      scramble = 0;
+      style = "layered";
+      twist = 4;
+      baseUndos = 1;
+      moveLimit = 22;
+    } else if (floorIndex === 3) {
+      colors = 6;
+      empty = 1;
       style = "layered";
       twist = 5;
-      baseUndos = 2;
+      baseUndos = 1;
+      moveLimit = 24;
+    } else if (floorIndex === 4) {
+      colors = 7;
+      empty = 1;
+      style = "layered";
+      twist = 6;
+      baseUndos = 1;
+      moveLimit = 26;
+    } else if (!isBoss) {
+      const after = Math.max(0, floorIndex - midBoss);
+      colors = Math.min(ALL_COLORS.length - 1, 9 + Math.floor(after * 0.5));
+      empty = 1;
+      style = "layered";
+      twist = 8 + after;
+      baseUndos = 1;
+      moveLimit = colors * 3 + 1;
     }
 
     if (isMini) {
-      colors = 8;
+      colors = 9;
       empty = 1;
       style = "layered";
-      twist = 7;
-      baseUndos = 2;
+      twist = 9;
+      baseUndos = 1;
+      moveLimit = 28;
       scramble = 0;
     }
 
     if (isFinal) {
-      colors = Math.min(ALL_COLORS.length, 11);
+      colors = ALL_COLORS.length; // 12
       empty = 1;
       style = "nightmare";
-      twist = 12;
-      baseUndos = 2;
+      twist = 16;
+      baseUndos = 1;
+      moveLimit = 36;
       scramble = 0;
     }
 
@@ -368,6 +370,7 @@ window.ColoriniProcgen = (function () {
       style,
       twist,
       baseUndos,
+      moveLimit,
       isBoss,
       isFinal,
       name: isFinal
