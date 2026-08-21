@@ -227,9 +227,16 @@
       const r = Rogue.RELICS[id];
       if (!r) return;
       const chip = document.createElement("span");
-      chip.className = "relic-chip rarity-" + r.rarity;
-      chip.title = r.name + " — " + r.desc;
-      chip.textContent = r.name.split(" ")[0];
+      chip.className =
+        "relic-chip rarity-" +
+        r.rarity +
+        (r.consumable ? " consumable" : " persistent");
+      chip.title =
+        r.name +
+        " — " +
+        r.desc +
+        (r.consumable ? " (monouso)" : " (permanente)");
+      chip.textContent = (r.consumable ? "1× " : "") + r.name.split(" ")[0];
       hudRelics.appendChild(chip);
     });
   }
@@ -403,13 +410,20 @@
     loadPuzzle(puzzle.bottles, puzzle.capacity, puzzle);
 
     const optLabel = estimate.exact ? `ottimo ${estimate.moves}` : `~${estimate.moves}`;
+    let rationNote = "";
+    if (run._bossRationJustUsed) {
+      rationNote = " · Razione boss consumata (+10)";
+    }
     if (spec.isFinal) {
       setHint(
-        `Boss · ${run.movesLeft} mosse (${optLabel}+${slack}) · 12 colori.`,
+        `Boss · ${run.movesLeft} mosse (${optLabel}+${slack}) · 12 colori.${rationNote}`,
         true
       );
     } else if (spec.isBoss) {
-      setHint(`Mini-boss · ${run.movesLeft} mosse (${optLabel}+${slack}).`, true);
+      setHint(
+        `Mini-boss · ${run.movesLeft} mosse (${optLabel}+${slack}).${rationNote}`,
+        true
+      );
     } else {
       setHint(`Piano ${run.floor + 1} · ${run.movesLeft} mosse (${optLabel}+${slack}).`, true);
     }
@@ -476,15 +490,13 @@
     if (state.busy) return;
 
     if (state.mode === "rogue" && state.run) {
-      if (state.run.freeRestarts > 0) {
-        state.run.freeRestarts -= 1;
+      if (Rogue.trySoftReset(state.run)) {
         state.bottles = cloneBottles(state.startBottles);
         state.history = [];
         state.selected = null;
-        const spec = Proc.floorSpec(state.run.floor, state.run.totalFloors);
-        Rogue.prepareFloorCharges(state.run, spec);
-        state.run.freeRestarts = 0;
-        setHint("Tappo di scorta: piano rifatto, sei ancora vivo.", true);
+        state.run.movesLeft = state.run.movesMax;
+        state.run.undosLeft = state.run.undosFloorBase;
+        setHint("Tappo di scorta consumato — piano rifatto.", true);
         render();
         return;
       }
@@ -599,7 +611,7 @@
 
     if (state.mode === "rogue" && state.run && state.run.movesLeft <= 0) {
       if (Rogue.tryLastGasp(state.run)) {
-        setHint("Ultimo sussulto: +3 mosse!", true);
+        setHint("Ultimo sussulto consumato: +3 mosse!", true);
         updateChrome();
       } else {
         dieFromMoves();
@@ -641,7 +653,7 @@
       state.run.movesLeft <= 0
     ) {
       if (Rogue.tryLastGasp(state.run)) {
-        setHint("Ultimo sussulto: +3 mosse!", true);
+        setHint("Ultimo sussulto consumato: +3 mosse!", true);
         updateChrome();
       } else {
         dieFromMoves();
@@ -681,7 +693,7 @@
             : "Piano netto";
       winTitle.textContent = "Colori in ordine!";
       const thriftMsg = thrift.thriftBonus
-        ? ` · Parsimonia +${thrift.thriftBonus} mosse permanenti`
+        ? ` · Parsimonia consumata (+${thrift.thriftBonus} mosse permanenti)`
         : "";
       winText.textContent = `+${gained} pt · ${state.run.movesLeft}/${state.run.movesMax} mosse residue${thriftMsg}.`;
       btnReplay.hidden = true;
@@ -737,9 +749,14 @@
     offers.forEach((relic) => {
       const card = document.createElement("button");
       card.type = "button";
-      card.className = "relic-card rarity-" + relic.rarity;
+      card.className =
+        "relic-card rarity-" +
+        relic.rarity +
+        (relic.consumable ? " consumable" : "");
       card.innerHTML =
-        `<span class="relic-rarity">${relic.rarity}</span>` +
+        `<span class="relic-rarity">${relic.rarity}${
+          relic.consumable ? " · monouso" : " · fissa"
+        }</span>` +
         `<strong>${relic.name}</strong>` +
         `<span class="relic-desc">${relic.desc}</span>`;
       card.addEventListener("click", () => {

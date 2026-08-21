@@ -1,5 +1,5 @@
 /**
- * Roguelike — move budget is the core resource; relics bend that budget.
+ * Roguelike relics — passives stay for the run; strong effects are consumable.
  */
 window.ColoriniRogue = (function () {
   "use strict";
@@ -9,7 +9,8 @@ window.ColoriniRogue = (function () {
   const BASE_UNDOS = 1;
 
   /**
-   * Relics are move-centric. Empty bottle is legendary (breaks the 1-empty choke).
+   * consumable: true → removed from inventory when triggered once.
+   * Fixed relics apply every floor for the whole run.
    */
   const RELICS = {
     step_cache: {
@@ -17,60 +18,70 @@ window.ColoriniRogue = (function () {
       name: "Scorte di passo",
       desc: "+4 mosse ogni piano.",
       rarity: "common",
+      consumable: false,
     },
     quick_pour: {
       id: "quick_pour",
       name: "Verso rapido",
       desc: "+2 mosse ogni piano.",
       rarity: "common",
+      consumable: false,
     },
     efficient_mind: {
       id: "efficient_mind",
       name: "Mente efficiente",
       desc: "+1 mossa permanente alla run.",
       rarity: "rare",
+      consumable: false,
     },
     undo_kit: {
       id: "undo_kit",
       name: "Kit di ripensamento",
       desc: "+1 undo ogni piano.",
       rarity: "common",
+      consumable: false,
     },
-    soft_reset: {
-      id: "soft_reset",
-      name: "Tappo di scorta",
-      desc: "1 rifai-piano senza morire.",
-      rarity: "rare",
-    },
-    last_gasp: {
-      id: "last_gasp",
-      name: "Ultimo sussulto",
-      desc: "A 0 mosse: +3 mosse, una volta a piano.",
-      rarity: "rare",
-    },
-    boss_ration: {
-      id: "boss_ration",
-      name: "Razione del boss",
-      desc: "+10 mosse solo nei boss.",
-      rarity: "legendary",
+    gambler_cork: {
+      id: "gambler_cork",
+      name: "Tappo scommettitore",
+      desc: "+6 mosse ogni piano, −1 undo base.",
+      rarity: "common",
+      consumable: false,
     },
     ghost_bottle: {
       id: "ghost_bottle",
       name: "Bottiglia fantasma",
       desc: "+1 bottiglia vuota ogni piano.",
       rarity: "legendary",
+      consumable: false,
+    },
+    soft_reset: {
+      id: "soft_reset",
+      name: "Tappo di scorta",
+      desc: "Monouso: rifai il piano attuale senza morire.",
+      rarity: "rare",
+      consumable: true,
+    },
+    last_gasp: {
+      id: "last_gasp",
+      name: "Ultimo sussulto",
+      desc: "Monouso: a 0 mosse ottieni +3 mosse.",
+      rarity: "rare",
+      consumable: true,
+    },
+    boss_ration: {
+      id: "boss_ration",
+      name: "Razione del boss",
+      desc: "Monouso: al prossimo boss, +10 mosse.",
+      rarity: "legendary",
+      consumable: true,
     },
     thrift: {
       id: "thrift",
       name: "Parsimonia",
-      desc: "Se chiudi con ≥5 mosse residue, +2 mosse permanenti.",
+      desc: "Monouso: se chiudi con ≥5 mosse residue, +2 mosse permanenti.",
       rarity: "rare",
-    },
-    gambler_cork: {
-      id: "gambler_cork",
-      name: "Tappo scommettitore",
-      desc: "+6 mosse, ma −1 undo base (min 0).",
-      rarity: "common",
+      consumable: true,
     },
   };
 
@@ -102,7 +113,6 @@ window.ColoriniRogue = (function () {
       movesLeft: 0,
       movesMax: 0,
       permanentMoves: 0,
-      lastGaspUsed: false,
       score: 0,
       floorsCleared: 0,
       bestFloor: 0,
@@ -112,6 +122,7 @@ window.ColoriniRogue = (function () {
       deathCycle: 0,
       lastClearMovesLeft: 0,
       lastClearMovesMax: 0,
+      pendingBossRation: false,
     };
   }
 
@@ -123,10 +134,28 @@ window.ColoriniRogue = (function () {
     return run.relics.filter((r) => r === id).length;
   }
 
+  function isConsumable(id) {
+    return !!(RELICS[id] && RELICS[id].consumable);
+  }
+
+  function consumeRelic(run, id) {
+    const idx = run.relics.indexOf(id);
+    if (idx < 0) return false;
+    run.relics.splice(idx, 1);
+    return true;
+  }
+
   function applyRelicPickup(run, id) {
     run.relics.push(id);
     if (id === "efficient_mind") {
       run.permanentMoves += 1;
+    }
+    // Soft reset: one charge for the whole run, not every floor
+    if (id === "soft_reset") {
+      run.freeRestarts += 1;
+    }
+    if (id === "boss_ration") {
+      run.pendingBossRation = true;
     }
   }
 
@@ -136,7 +165,6 @@ window.ColoriniRogue = (function () {
     n += countRelic(run, "quick_pour") * 2;
     n += countRelic(run, "gambler_cork") * 6;
     n += run.permanentMoves || 0;
-    if (spec && spec.isBoss && hasRelic(run, "boss_ration")) n += 10;
     return Math.max(5, n);
   }
 
@@ -148,12 +176,26 @@ window.ColoriniRogue = (function () {
   }
 
   function prepareFloorCharges(run, spec) {
-    run.movesMax = movesForFloor(run, spec);
-    run.movesLeft = run.movesMax;
+    let moves = movesForFloor(run, spec);
+    // Consumable boss ration: fires once on a boss floor, then gone
+    if (
+      spec &&
+      spec.isBoss &&
+      (run.pendingBossRation || hasRelic(run, "boss_ration"))
+    ) {
+      moves += 10;
+      run.pendingBossRation = false;
+      consumeRelic(run, "boss_ration");
+      run._bossRationJustUsed = true;
+    } else {
+      run._bossRationJustUsed = false;
+    }
+
+    run.movesMax = moves;
+    run.movesLeft = moves;
     run.undosLeft = undosForFloor(run, spec);
     run.undosFloorBase = run.undosLeft;
-    run.freeRestarts = hasRelic(run, "soft_reset") ? 1 : 0;
-    run.lastGaspUsed = false;
+    // freeRestarts is NOT refreshed each floor — only from picking soft_reset
   }
 
   function emptyBonus(run) {
@@ -164,20 +206,30 @@ window.ColoriniRogue = (function () {
     return 0;
   }
 
+  /** Consumable: +3 moves once, then relic is destroyed. */
   function tryLastGasp(run) {
-    if (!hasRelic(run, "last_gasp") || run.lastGaspUsed) return false;
+    if (!hasRelic(run, "last_gasp")) return false;
     if (run.movesLeft > 0) return false;
-    run.lastGaspUsed = true;
+    consumeRelic(run, "last_gasp");
     run.movesLeft += 3;
     return true;
   }
 
-  /** Call after a successful clear — thrift may bump permanent moves. */
+  /** Consumable soft reset: spend freeRestart charge and remove relic. */
+  function trySoftReset(run) {
+    if (run.freeRestarts <= 0) return false;
+    run.freeRestarts -= 1;
+    consumeRelic(run, "soft_reset");
+    return true;
+  }
+
+  /** Call after a successful clear — thrift is consumable on trigger. */
   function onFloorCleared(run, movesLeft, movesMax) {
     run.lastClearMovesLeft = movesLeft;
     run.lastClearMovesMax = movesMax;
     if (hasRelic(run, "thrift") && movesLeft >= 5) {
       run.permanentMoves += 2;
+      consumeRelic(run, "thrift");
       return { thriftBonus: 2 };
     }
     return { thriftBonus: 0 };
@@ -190,18 +242,12 @@ window.ColoriniRogue = (function () {
     run.hp = BASE_HP;
     run.maxHp = BASE_HP;
     run.alive = true;
-    run.freeRestarts = 0;
-    run.lastGaspUsed = false;
+    // Keep freeRestarts / consumables — death does not wipe unused charges
     return { resetToStart: true };
   }
 
-  /**
-   * Offer quality tracks how tight the clear was (moves left).
-   * Efficient clears → rarer relics.
-   */
   function pickRelicOffers(run, rng, count, movesLeft, movesMax) {
     const ratio = movesMax > 0 ? movesLeft / movesMax : 0;
-    // Low ratio = clutch clear = better loot; high leftover = common loot
     let commonW = 5;
     let rareW = 3;
     let legW = 1;
@@ -222,7 +268,7 @@ window.ColoriniRogue = (function () {
     let available = POOL.filter((id) => {
       const n = countRelic(run, id);
       if (n === 0) return true;
-      if (STACKABLE.has(id) && n < 2) return true;
+      if (!isConsumable(id) && STACKABLE.has(id) && n < 2) return true;
       return false;
     });
 
@@ -262,6 +308,8 @@ window.ColoriniRogue = (function () {
   function clearRelics(run) {
     run.relics = [];
     run.permanentMoves = 0;
+    run.freeRestarts = 0;
+    run.pendingBossRation = false;
   }
 
   return {
@@ -272,11 +320,14 @@ window.ColoriniRogue = (function () {
     createRun,
     hasRelic,
     countRelic,
+    isConsumable,
+    consumeRelic,
     applyRelicPickup,
     prepareFloorCharges,
     emptyBonus,
     preSortedBonus,
     tryLastGasp,
+    trySoftReset,
     onFloorCleared,
     onDeath,
     pickRelicOffers,

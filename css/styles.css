@@ -742,6 +742,19 @@ body {
   color: #b45309;
 }
 
+.relic-chip.consumable {
+  border-style: dashed;
+  background: rgba(255, 247, 237, 0.95);
+}
+
+.relic-chip.persistent {
+  border-style: solid;
+}
+
+.relic-card.consumable {
+  border-style: dashed;
+}
+
 .relic-grid {
   display: grid;
   gap: 0.65rem;
