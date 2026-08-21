@@ -2,40 +2,18 @@
 
 Puzzle **water sort** con modalità **rogue-like**, in puro HTML/CSS/JS.
 
-## Gioca
+## Spedizione (rogue)
 
-Apri `index.html` oppure GitHub Pages.
+- **12 piani** con curva ripida: inizio soft, poi layout a colori intrecciati
+- **1 sola vita** — il pulsante ☠ Muori ti riporta al piano 1
+- **Le reliquie restano** dopo ogni morte, finché non completi la run (poi si consumano)
+- Undo pochi sui piani alti; boss finale in stile *nightmare* (11 colori, 1 vuoto)
+- Mini-boss a metà run
 
-## Modalità
+## Archivio
 
-### Spedizione (rogue)
-- 8 piani procedurali che scalano di difficoltà
-- Vite: ricominciare un piano costa ♥ (game over a 0)
-- Undo limitati per piano
-- Dopo ogni piano scegli una **reliquia**
-- Mini-boss a metà run, boss finale all’ultimo piano
-
-### Archivio
-I livelli classici fissi, con undo illimitati e navigazione libera.
-
-## Controlli
-
-Undo, Restart, Hint (se hai la reliquia), musica, switch modalità.
-
-La colonna sonora è generata in browser (Web Audio).
+Livelli classici fissi, undo illimitati.
 
 ## GitHub Pages
 
-In *Settings → Pages* scegli branch `main` e cartella `/ (root)`.
-
-## Struttura
-
-```
-index.html
-css/styles.css
-js/levels.js
-js/procgen.js
-js/rogue.js
-js/music.js
-js/game.js
-```
+Branch `main`, cartella `/ (root)`.
