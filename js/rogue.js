@@ -19,6 +19,7 @@ window.ColoriniRogue = (function () {
       desc: "+1 mossa ogni piano.",
       rarity: "common",
       consumable: false,
+      cost: 3,
     },
     quick_pour: {
       id: "quick_pour",
@@ -26,6 +27,7 @@ window.ColoriniRogue = (function () {
       desc: "+1 mossa ogni piano.",
       rarity: "common",
       consumable: false,
+      cost: 2,
     },
     efficient_mind: {
       id: "efficient_mind",
@@ -33,6 +35,7 @@ window.ColoriniRogue = (function () {
       desc: "+1 mossa permanente alla run (max 2 stack).",
       rarity: "rare",
       consumable: false,
+      cost: 5,
     },
     undo_kit: {
       id: "undo_kit",
@@ -40,6 +43,7 @@ window.ColoriniRogue = (function () {
       desc: "+1 undo ogni piano.",
       rarity: "common",
       consumable: false,
+      cost: 3,
     },
     gambler_cork: {
       id: "gambler_cork",
@@ -47,6 +51,7 @@ window.ColoriniRogue = (function () {
       desc: "+2 mosse ogni piano, ma −1 undo base.",
       rarity: "common",
       consumable: false,
+      cost: 4,
     },
     ghost_bottle: {
       id: "ghost_bottle",
@@ -54,6 +59,7 @@ window.ColoriniRogue = (function () {
       desc: "+1 bottiglia vuota ogni piano.",
       rarity: "legendary",
       consumable: false,
+      cost: 10,
     },
     soft_reset: {
       id: "soft_reset",
@@ -61,6 +67,7 @@ window.ColoriniRogue = (function () {
       desc: "Monouso: rifai il piano attuale senza morire.",
       rarity: "rare",
       consumable: true,
+      cost: 6,
     },
     last_gasp: {
       id: "last_gasp",
@@ -68,6 +75,7 @@ window.ColoriniRogue = (function () {
       desc: "Monouso: a 0 mosse ottieni +2 mosse.",
       rarity: "rare",
       consumable: true,
+      cost: 5,
     },
     boss_ration: {
       id: "boss_ration",
@@ -75,6 +83,7 @@ window.ColoriniRogue = (function () {
       desc: "Monouso raro: al prossimo boss, +10 mosse.",
       rarity: "legendary",
       consumable: true,
+      cost: 10,
     },
     thrift: {
       id: "thrift",
@@ -82,6 +91,7 @@ window.ColoriniRogue = (function () {
       desc: "Monouso: se chiudi con ≥5 mosse residue, +1 mossa permanente.",
       rarity: "rare",
       consumable: true,
+      cost: 4,
     },
   };
 
@@ -125,6 +135,10 @@ window.ColoriniRogue = (function () {
       lastClearMovesLeft: 0,
       lastClearMovesMax: 0,
       pendingBossRation: false,
+      wallet: 0,
+      pinnedItem: null,
+      nextFloorMoves: 0,
+      nextFloorUndos: 0,
     };
   }
 
@@ -167,6 +181,7 @@ window.ColoriniRogue = (function () {
     n += countRelic(run, "quick_pour") * 1;
     n += countRelic(run, "gambler_cork") * 2;
     n += run.permanentMoves || 0;
+    n += run.nextFloorMoves || 0;
     return Math.max(5, n);
   }
 
@@ -174,12 +189,12 @@ window.ColoriniRogue = (function () {
     let n = spec && spec.baseUndos != null ? spec.baseUndos : BASE_UNDOS;
     n += countRelic(run, "undo_kit");
     n -= countRelic(run, "gambler_cork");
+    n += run.nextFloorUndos || 0;
     return Math.max(0, n);
   }
 
   function prepareFloorCharges(run, spec) {
     let moves = movesForFloor(run, spec);
-    // Consumable boss ration: fires once on a boss floor, then gone
     if (
       spec &&
       spec.isBoss &&
@@ -197,7 +212,22 @@ window.ColoriniRogue = (function () {
     run.movesLeft = moves;
     run.undosLeft = undosForFloor(run, spec);
     run.undosFloorBase = run.undosLeft;
-    // freeRestarts is NOT refreshed each floor — only from picking soft_reset
+    // One-shot shop buffs apply once
+    run.nextFloorMoves = 0;
+    run.nextFloorUndos = 0;
+  }
+
+  function bankLeftoverMoves(run, movesLeft) {
+    const gained = Math.max(0, movesLeft | 0);
+    run.wallet = (run.wallet || 0) + gained;
+    return gained;
+  }
+
+  function canOwnMore(run, id) {
+    const n = countRelic(run, id);
+    if (n === 0) return true;
+    if (!isConsumable(id) && STACKABLE.has(id) && n < 2) return true;
+    return false;
   }
 
   function emptyBonus(run) {
@@ -340,6 +370,10 @@ window.ColoriniRogue = (function () {
     run.permanentMoves = 0;
     run.freeRestarts = 0;
     run.pendingBossRation = false;
+    run.wallet = 0;
+    run.pinnedItem = null;
+    run.nextFloorMoves = 0;
+    run.nextFloorUndos = 0;
   }
 
   return {
@@ -365,5 +399,7 @@ window.ColoriniRogue = (function () {
     clearRelics,
     movesForFloor,
     undosForFloor,
+    bankLeftoverMoves,
+    canOwnMore,
   };
 })();

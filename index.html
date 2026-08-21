@@ -45,6 +45,7 @@
       <span class="hud-label">Mosse</span> <strong id="hudMoves">20</strong>
     </div>
     <div class="hud-stat" title="Undo rimasti"><span class="hud-label">Undo</span> <strong id="hudUndos">1</strong></div>
+    <div class="hud-stat hud-gocce" title="Gocce (mosse avanzate)"><span class="hud-label">💧</span> <strong id="hudGocce">0</strong></div>
     <div class="hud-stat" title="Punteggio"><span class="hud-label">Pt</span> <strong id="hudScore">0</strong></div>
     <div class="hud-relics" id="hudRelics" aria-label="Reliquie"></div>
   </div>
@@ -79,8 +80,8 @@
       <p class="modal-kicker">Spedizione rogue</p>
       <h2 id="titleHeading">Colorini Run</h2>
       <p class="modal-text">
-        12 piani con colori ben distinti e <strong>limite mosse = soluzione + 2</strong>.
-        Una vita: mosse finite o ☠ Muori → piano 1, reliquie tenute fino al clear.
+        12 piani: mosse = soluzione + poco margine. Le mosse avanzate diventano
+        <strong>gocce</strong> da spendere da Travaso. Una vita; morte → piano 1 con roba tenuta.
       </p>
       <p class="best-run" id="bestRun">Record: —</p>
       <div class="modal-actions modal-actions-stack">
@@ -103,13 +104,34 @@
     </div>
   </div>
 
-  <!-- Relic pick -->
-  <div class="overlay" id="relicOverlay" hidden>
-    <div class="modal modal-wide" role="dialog" aria-labelledby="relicTitle" aria-modal="true">
-      <p class="modal-kicker">Bottino del piano</p>
-      <h2 id="relicTitle">Scegli una reliquia</h2>
-      <p class="modal-text">Ti accompagnerà per il resto della spedizione.</p>
-      <div class="relic-grid" id="relicGrid"></div>
+  <!-- Relic pick replaced by Travaso's shop -->
+  <div class="overlay vendor-overlay" id="vendorOverlay" hidden>
+    <div class="vendor-panel" role="dialog" aria-labelledby="vendorTitle" aria-modal="true">
+      <div class="vendor-hero">
+        <div class="vendor-mascot" aria-hidden="true">
+          <span class="mascot-hat"></span>
+          <span class="mascot-bottle">
+            <span class="mascot-face"></span>
+            <span class="mascot-liquid"></span>
+          </span>
+          <span class="mascot-mustache"></span>
+        </div>
+        <div class="vendor-intro">
+          <p class="modal-kicker">Bottega errante</p>
+          <h2 id="vendorTitle">Travaso</h2>
+          <p class="vendor-quote" id="vendorQuote">Mosse risparmiate, gocce guadagnate!</p>
+        </div>
+        <div class="vendor-wallet" id="vendorWallet" title="Gocce = mosse avanzate">
+          <span class="wallet-drop" aria-hidden="true"></span>
+          <strong id="vendorWalletAmount">0</strong>
+          <span>gocce</span>
+        </div>
+      </div>
+      <p class="vendor-hint">Fissa una merce (📌) per ritrovarla alla prossima tappa. Compra con le mosse avanzate.</p>
+      <div class="vendor-shelf" id="vendorShelf"></div>
+      <div class="vendor-actions">
+        <button type="button" class="btn btn-primary" id="btnVendorLeave">Continua il viaggio</button>
+      </div>
     </div>
   </div>
 
@@ -129,6 +151,7 @@
   <script src="js/levels.js"></script>
   <script src="js/procgen.js"></script>
   <script src="js/rogue.js"></script>
+  <script src="js/vendor.js"></script>
   <script src="js/music.js"></script>
   <script src="js/game.js"></script>
 </body>

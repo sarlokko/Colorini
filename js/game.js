@@ -5,6 +5,7 @@
   const Proc = window.ColoriniProcgen;
   const Rogue = window.ColoriniRogue;
   const Music = window.ColoriniMusic;
+  const Vendor = window.ColoriniVendor;
 
   const STORAGE_ARCHIVE = "colorini-progress";
   const STORAGE_BEST = "colorini-best-run";
@@ -29,6 +30,7 @@
   const hudMoves = document.getElementById("hudMoves");
   const hudMovesWrap = document.getElementById("hudMovesWrap");
   const hudScore = document.getElementById("hudScore");
+  const hudGocce = document.getElementById("hudGocce");
   const hudRelics = document.getElementById("hudRelics");
 
   const winOverlay = document.getElementById("winOverlay");
@@ -43,7 +45,12 @@
   const btnNewRun = document.getElementById("btnNewRun");
   const btnOpenArchive = document.getElementById("btnOpenArchive");
 
-  const relicOverlay = document.getElementById("relicOverlay");
+  const relicOverlay = document.getElementById("relicOverlay"); // legacy unused
+  const vendorOverlay = document.getElementById("vendorOverlay");
+  const vendorShelf = document.getElementById("vendorShelf");
+  const vendorQuote = document.getElementById("vendorQuote");
+  const vendorWalletAmount = document.getElementById("vendorWalletAmount");
+  const btnVendorLeave = document.getElementById("btnVendorLeave");
   const relicGrid = document.getElementById("relicGrid");
 
   const runOverlay = document.getElementById("runOverlay");
@@ -194,7 +201,7 @@
     return (
       !titleOverlay.hidden ||
       !winOverlay.hidden ||
-      !relicOverlay.hidden ||
+      (vendorOverlay && !vendorOverlay.hidden) ||
       !runOverlay.hidden
     );
   }
@@ -202,7 +209,7 @@
   function hideOverlays() {
     titleOverlay.hidden = true;
     winOverlay.hidden = true;
-    relicOverlay.hidden = true;
+    if (vendorOverlay) vendorOverlay.hidden = true;
     runOverlay.hidden = true;
   }
 
@@ -266,6 +273,7 @@
         else if (ratio <= 0.3) hudMovesWrap.classList.add("is-low");
       }
       hudScore.textContent = String(state.run.score);
+      if (hudGocce) hudGocce.textContent = String(state.run.wallet || 0);
       renderHearts();
       renderRelicHud();
       restartLabel.textContent =
@@ -676,6 +684,7 @@
         state.run.movesLeft,
         state.run.movesMax
       );
+      const banked = Rogue.bankLeftoverMoves(state.run, state.run.movesLeft);
       const gained = Rogue.floorScore(
         state.run.movesLeft,
         state.run.movesMax,
@@ -693,12 +702,12 @@
             : "Piano netto";
       winTitle.textContent = "Colori in ordine!";
       const thriftMsg = thrift.thriftBonus
-        ? ` · Parsimonia consumata (+${thrift.thriftBonus} mosse permanenti)`
+        ? ` · Parsimonia consumata (+${thrift.thriftBonus} permanente)`
         : "";
-      winText.textContent = `+${gained} pt · ${state.run.movesLeft}/${state.run.movesMax} mosse residue${thriftMsg}.`;
+      winText.textContent = `+${gained} pt · +${banked} gocce (ora ${state.run.wallet})${thriftMsg}.`;
       btnReplay.hidden = true;
       btnContinue.textContent =
-        state.run.floor >= state.run.totalFloors - 1 ? "Vittoria" : "Scegli reliquia";
+        state.run.floor >= state.run.totalFloors - 1 ? "Vittoria" : "Bottega di Travaso";
       winOverlay.hidden = false;
       updateChrome();
       return;
@@ -718,56 +727,99 @@
     updateChrome();
   }
 
-  function openRelicPick() {
+  function renderVendorShelf() {
+    const run = state.run;
+    if (!run || !vendorShelf || !Vendor) return;
+    const rng = Proc.mulberry32(
+      (run.seed ^ ((run.floor + 77) * 2246822519) ^ (run.deathCycle * 17)) >>> 0
+    );
+    if (vendorQuote) vendorQuote.textContent = Vendor.quote(rng);
+    if (vendorWalletAmount) vendorWalletAmount.textContent = String(run.wallet || 0);
+
+    const stock = Vendor.buildStock(run, Rogue, rng, 4);
+    vendorShelf.replaceChildren();
+
+    stock.forEach((item) => {
+      const card = document.createElement("div");
+      card.className =
+        "vendor-card rarity-" +
+        item.rarity +
+        (item.consumable ? " consumable" : "") +
+        (item.pinned ? " is-pinned" : "");
+
+      const afford = (run.wallet || 0) >= item.cost;
+      const owned =
+        !item.shopOnly && !Rogue.canOwnMore(run, item.id) && !item.pinned;
+
+      card.innerHTML =
+        `<div class="vendor-card-top">` +
+        `<span class="relic-rarity">${item.rarity}${
+          item.consumable ? " · monouso" : item.shopOnly ? " · buff" : " · fissa"
+        }</span>` +
+        `<button type="button" class="pin-btn" aria-label="Fissa merce" data-pin="${item.id}">${
+          run.pinnedItem === item.id ? "📌" : "📍"
+        }</button>` +
+        `</div>` +
+        `<strong>${item.name}</strong>` +
+        `<span class="relic-desc">${item.desc}</span>` +
+        `<div class="vendor-card-buy">` +
+        `<span class="vendor-price"><span class="wallet-drop"></span>${item.cost}</span>` +
+        `<button type="button" class="btn btn-primary btn-buy" data-buy="${item.id}" ${
+          !afford || owned ? "disabled" : ""
+        }>${owned ? "Ce l’hai" : afford ? "Compra" : "Troppo cara"}</button>` +
+        `</div>`;
+
+      vendorShelf.appendChild(card);
+    });
+
+    vendorShelf.querySelectorAll("[data-pin]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        Vendor.togglePin(run, btn.getAttribute("data-pin"));
+        renderVendorShelf();
+        setHint(
+          run.pinnedItem
+            ? "Merce fissata: Travaso la riporta la prossima volta."
+            : "Fissaggio rimosso.",
+          true
+        );
+      });
+    });
+
+    vendorShelf.querySelectorAll("[data-buy]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-buy");
+        const result = Vendor.buy(run, Rogue, id);
+        if (!result.ok) {
+          if (vendorQuote) vendorQuote.textContent = result.reason;
+          return;
+        }
+        if (vendorQuote) {
+          vendorQuote.textContent = `Affare fatto: ${result.item.name}!`;
+        }
+        renderVendorShelf();
+        updateChrome();
+      });
+    });
+  }
+
+  function openVendor() {
     winOverlay.hidden = true;
     const run = state.run;
+    if (!run) return;
     if (run.floor >= run.totalFloors - 1) {
       endRun(true);
       return;
     }
-    const rng = Proc.mulberry32((run.seed ^ ((run.floor + 99) * 1597334677)) >>> 0);
-    const offers = Rogue.pickRelicOffers(
-      run,
-      rng,
-      3,
-      run.lastClearMovesLeft,
-      run.lastClearMovesMax
-    );
-    const ratio =
-      run.lastClearMovesMax > 0
-        ? run.lastClearMovesLeft / run.lastClearMovesMax
-        : 1;
-    const lootHint =
-      ratio <= 0.15
-        ? "Clear al limite — bottino alto."
-        : ratio >= 0.55
-          ? "Clear comodo — bottino comune."
-          : "Scegli con cura.";
-    document.querySelector("#relicOverlay .modal-text").textContent = lootHint;
+    renderVendorShelf();
+    vendorOverlay.hidden = false;
+  }
 
-    relicGrid.replaceChildren();
-    offers.forEach((relic) => {
-      const card = document.createElement("button");
-      card.type = "button";
-      card.className =
-        "relic-card rarity-" +
-        relic.rarity +
-        (relic.consumable ? " consumable" : "");
-      card.innerHTML =
-        `<span class="relic-rarity">${relic.rarity}${
-          relic.consumable ? " · monouso" : " · fissa"
-        }</span>` +
-        `<strong>${relic.name}</strong>` +
-        `<span class="relic-desc">${relic.desc}</span>`;
-      card.addEventListener("click", () => {
-        Rogue.applyRelicPickup(run, relic.id);
-        run.floor += 1;
-        relicOverlay.hidden = true;
-        startFloor();
-      });
-      relicGrid.appendChild(card);
-    });
-    relicOverlay.hidden = false;
+  function leaveVendor() {
+    if (!state.run) return;
+    vendorOverlay.hidden = true;
+    state.run.floor += 1;
+    startFloor();
   }
 
   function endRun(won) {
@@ -834,13 +886,17 @@
 
   btnContinue.addEventListener("click", () => {
     if (state.mode === "rogue") {
-      openRelicPick();
+      openVendor();
       return;
     }
     winOverlay.hidden = true;
     if (state.levelIndex >= LEVELS.length - 1) loadArchiveLevel(0);
     else loadArchiveLevel(state.levelIndex + 1);
   });
+
+  if (btnVendorLeave) {
+    btnVendorLeave.addEventListener("click", leaveVendor);
+  }
 
   btnNewRun.addEventListener("click", () => {
     titleOverlay.hidden = true;
@@ -902,8 +958,8 @@
       if (!runOverlay.hidden) {
         runOverlay.hidden = true;
         showTitle();
-      } else if (!relicOverlay.hidden) {
-        /* must pick */
+      } else if (vendorOverlay && !vendorOverlay.hidden) {
+        /* must leave via button */
       } else if (!winOverlay.hidden && state.mode === "archive") {
         winOverlay.hidden = true;
       } else if (state.selected !== null) {
