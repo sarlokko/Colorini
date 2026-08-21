@@ -13,7 +13,9 @@ Apri `index.html` in un browser, oppure usa GitHub Pages dopo il deploy.
 3. Si versa solo se il colore in cima coincide e c’è spazio
 4. Vittoria: ogni bottiglia è piena di un solo colore, oppure vuota
 
-Controlli: **Undo**, **Restart**, navigazione livelli.
+Controlli: **Undo**, **Restart**, navigazione livelli, **musica** (pulsante in alto a destra).
+
+La colonna sonora è generata in browser (Web Audio), senza file audio esterni.
 
 ## GitHub Pages
 

@@ -15,6 +15,9 @@
   const winText = document.getElementById("winText");
   const btnReplay = document.getElementById("btnReplay");
   const btnContinue = document.getElementById("btnContinue");
+  const levelName = document.getElementById("levelName");
+  const btnMusic = document.getElementById("btnMusic");
+  const Music = window.ColoriniMusic;
 
   /** @type {{ capacity: number, bottles: string[][], selected: number|null, history: string[][][], busy: boolean, levelIndex: number }} */
   const state = {
@@ -110,11 +113,23 @@
   function updateChrome() {
     const level = LEVELS[state.levelIndex];
     levelLabel.textContent = `Livello ${state.levelIndex + 1}`;
-    levelLabel.title = level.name;
+    if (levelName) levelName.textContent = level.name;
     btnUndo.disabled = state.busy || state.history.length === 0;
     btnRestart.disabled = state.busy;
     btnPrev.disabled = state.busy || state.levelIndex === 0;
     btnNext.disabled = state.busy || state.levelIndex >= LEVELS.length - 1;
+  }
+
+  function syncMusicButton() {
+    if (!btnMusic || !Music) return;
+    const on = Music.isEnabled();
+    btnMusic.setAttribute("aria-pressed", on ? "true" : "false");
+    btnMusic.setAttribute("aria-label", on ? "Disattiva musica" : "Attiva musica");
+    btnMusic.title = on ? "Musica on" : "Musica off";
+    const iconOn = btnMusic.querySelector(".icon-music-on");
+    const iconOff = btnMusic.querySelector(".icon-music-off");
+    if (iconOn) iconOn.hidden = !on;
+    if (iconOff) iconOff.hidden = on;
   }
 
   function renderBottle(index) {
@@ -380,6 +395,22 @@
       loadLevel(state.levelIndex + 1);
     }
   });
+
+  if (btnMusic && Music) {
+    syncMusicButton();
+    btnMusic.addEventListener("click", async () => {
+      const next = !Music.isEnabled();
+      await Music.setEnabled(next);
+      syncMusicButton();
+    });
+  }
+
+  // Unlock audio context on first interaction if music was previously enabled
+  const unlockOnce = () => {
+    if (Music) Music.unlockAndMaybePlay();
+    window.removeEventListener("pointerdown", unlockOnce);
+  };
+  window.addEventListener("pointerdown", unlockOnce);
 
   winOverlay.addEventListener("click", (e) => {
     if (e.target === winOverlay) {
