@@ -91,8 +91,8 @@ window.ColoriniRogue = (function () {
 
   /** Extra scarcity for legendaries (multiplies rarity weight). */
   const LEGENDARY_WEIGHT = {
-    boss_ration: 0.12,
-    ghost_bottle: 0.2,
+    boss_ration: 0.08,
+    ghost_bottle: 0.15,
   };
 
   function createRun(seedStr) {
