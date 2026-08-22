@@ -295,15 +295,16 @@ body {
 
 .versato-bubble {
   position: absolute;
-  left: 44px;
-  top: -6px;
-  width: min(210px, 58vw);
+  left: 0;
+  bottom: calc(100% + 10px);
+  top: auto;
+  width: min(240px, 72vw);
   padding: 0.55rem 0.7rem;
   background: #fffef8;
   border: 2px solid #1a3f4a;
-  border-radius: 14px 14px 14px 5px;
+  border-radius: 14px 14px 14px 6px;
   box-shadow: 3px 4px 0 rgba(26, 63, 74, 0.12);
-  z-index: 40;
+  z-index: 60;
   pointer-events: none;
   text-align: left;
 }
@@ -311,8 +312,8 @@ body {
 .versato-bubble::after {
   content: "";
   position: absolute;
-  left: -2px;
-  bottom: -8px;
+  left: 16px;
+  bottom: -9px;
   width: 12px;
   height: 12px;
   background: #fffef8;
