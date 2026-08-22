@@ -295,14 +295,15 @@ body {
 
 .versato-bubble {
   position: absolute;
-  left: 0;
-  bottom: calc(100% + 10px);
-  top: auto;
-  width: min(240px, 72vw);
+  left: calc(100% + 6px);
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
+  width: min(220px, 58vw);
   padding: 0.55rem 0.7rem;
   background: #fffef8;
   border: 2px solid #1a3f4a;
-  border-radius: 14px 14px 14px 6px;
+  border-radius: 6px 14px 14px 14px;
   box-shadow: 3px 4px 0 rgba(26, 63, 74, 0.12);
   z-index: 60;
   pointer-events: none;
@@ -312,13 +313,16 @@ body {
 .versato-bubble::after {
   content: "";
   position: absolute;
-  left: 16px;
-  bottom: -9px;
+  left: -7px;
+  top: 50%;
+  bottom: auto;
   width: 12px;
   height: 12px;
+  margin-top: -6px;
   background: #fffef8;
-  border-right: 2px solid #1a3f4a;
+  border-left: 2px solid #1a3f4a;
   border-bottom: 2px solid #1a3f4a;
+  border-right: none;
   transform: rotate(45deg);
 }
 
@@ -331,7 +335,18 @@ body {
 }
 
 .versato-bubble.bubble-pop {
-  animation: bubble-pop 0.4s var(--ease-spring);
+  animation: bubble-pop-side 0.4s var(--ease-spring);
+}
+
+@keyframes bubble-pop-side {
+  0% {
+    opacity: 0;
+    transform: translateY(-50%) translateX(-6px) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0) scale(1);
+  }
 }
 
 @keyframes versato-bob {
