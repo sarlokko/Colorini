@@ -539,6 +539,8 @@ window.ColoriniProcgen = (function () {
       moveLimit: minOptimal + 4,
       isBoss,
       isFinal,
+      /** Real-time seconds for boss floors (tuned in game with movesMax). */
+      bossTimerBase: isFinal ? 130 : isMini ? 95 : 0,
       name: isFinal
         ? "Boss finale"
         : isMini

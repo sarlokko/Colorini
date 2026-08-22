@@ -67,6 +67,27 @@
   const btnRunTitle = document.getElementById("btnRunTitle");
 
   const btnMusic = document.getElementById("btnMusic");
+  const btnVersato = document.getElementById("btnVersato");
+  const versatoBubble = document.getElementById("versatoBubble");
+  const versatoBubbleText = document.getElementById("versatoBubbleText");
+  const hudTimerWrap = document.getElementById("hudTimerWrap");
+  const hudTimer = document.getElementById("hudTimer");
+  const bossBanner = document.getElementById("bossBanner");
+  const bossBannerLabel = document.getElementById("bossBannerLabel");
+  const bossBannerTimer = document.getElementById("bossBannerTimer");
+
+  const VERSATO_LINES = [
+    "Io sono Versato! Travaso vende, io… commento.",
+    "Versa i colori uguali insieme. Sembra banale. Lo è. Funziona.",
+    "Lascia sempre una bottiglia di manovra. Sempre.",
+    "Se sei bloccato, undo. Se non hai undo… ehm. Ciao.",
+    "I boss hanno anche il timer. Io non corro. Tu sì.",
+    "Le reliquie restano. Gli oggetti fanno «puff». Come le mie battute.",
+    "Non riempire a caso: pensa due mosse avanti. Ok, una e mezza.",
+    "Travaso dà consigli inutili. Io do consigli… leggermente meno inutili.",
+    "Mini-boss a metà strada. Boss finale alla fine. Sorpresa!",
+    "Se il tempo scende in rosso, respira. Poi corri.",
+  ];
 
   const state = {
     mode: "rogue", // 'rogue' | 'archive'
@@ -81,6 +102,11 @@
     floorRng: null,
     puzzleMeta: null,
     blocked: false,
+    bossTimeLeft: 0,
+    bossTimeMax: 0,
+    bossTimerId: null,
+    lastVersatoLine: "",
+    versatoTimer: null,
   };
 
   function cloneBottles(bottles) {
@@ -255,6 +281,126 @@
     bag.items.forEach((e) => addChip(e, "item"));
   }
 
+  function formatTime(sec) {
+    const s = Math.max(0, Math.ceil(sec));
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return m + ":" + String(r).padStart(2, "0");
+  }
+
+  function clearBossTimer() {
+    if (state.bossTimerId) {
+      clearInterval(state.bossTimerId);
+      state.bossTimerId = null;
+    }
+    state.bossTimeLeft = 0;
+    state.bossTimeMax = 0;
+    if (hudTimerWrap) hudTimerWrap.hidden = true;
+    if (bossBanner) bossBanner.hidden = true;
+    document.body.classList.remove("boss-active");
+  }
+
+  function syncBossTimerUi() {
+    const active =
+      state.mode === "rogue" &&
+      state.run &&
+      state.puzzleMeta &&
+      state.puzzleMeta.isBoss &&
+      state.bossTimeMax > 0;
+    if (!active) {
+      if (hudTimerWrap) hudTimerWrap.hidden = true;
+      if (bossBanner) bossBanner.hidden = true;
+      document.body.classList.remove("boss-active");
+      return;
+    }
+    document.body.classList.add("boss-active");
+    const label = formatTime(state.bossTimeLeft);
+    const ratio =
+      state.bossTimeMax > 0 ? state.bossTimeLeft / state.bossTimeMax : 1;
+    const low = state.bossTimeLeft <= 20 || ratio <= 0.25;
+    const critical = state.bossTimeLeft <= 10;
+
+    if (hudTimerWrap && hudTimer) {
+      hudTimerWrap.hidden = false;
+      hudTimer.textContent = label;
+      hudTimerWrap.classList.toggle("is-low", low && !critical);
+      hudTimerWrap.classList.toggle("is-critical", critical);
+    }
+    if (bossBanner && bossBannerLabel && bossBannerTimer) {
+      bossBanner.hidden = false;
+      bossBanner.classList.toggle("is-final", !!state.puzzleMeta.isFinal);
+      bossBannerLabel.textContent = state.puzzleMeta.isFinal
+        ? "Boss finale"
+        : "Mini-boss";
+      bossBannerTimer.textContent = label;
+      bossBannerTimer.classList.toggle("is-low", low && !critical);
+      bossBannerTimer.classList.toggle("is-critical", critical);
+    }
+  }
+
+  function startBossTimer(seconds) {
+    clearBossTimer();
+    if (!(seconds > 0)) {
+      syncBossTimerUi();
+      return;
+    }
+    state.bossTimeMax = seconds;
+    state.bossTimeLeft = seconds;
+    syncBossTimerUi();
+    state.bossTimerId = setInterval(() => {
+      if (anyOverlayOpen() || state.busy) return;
+      state.bossTimeLeft -= 1;
+      if (state.bossTimeLeft <= 0) {
+        state.bossTimeLeft = 0;
+        syncBossTimerUi();
+        clearBossTimer();
+        dieFromTimer();
+        return;
+      }
+      syncBossTimerUi();
+    }, 1000);
+  }
+
+  function bossTimerSeconds(run, spec, movesMax) {
+    const base = (spec && spec.bossTimerBase) || (spec && spec.isFinal ? 130 : 95);
+    const fromMoves = Math.round((movesMax || 20) * 3.1);
+    const raw = Math.max(base, fromMoves);
+    if (spec && spec.isFinal) return Math.min(200, Math.max(110, raw));
+    return Math.min(150, Math.max(75, raw));
+  }
+
+  function showVersatoLine(line) {
+    if (!versatoBubble || !versatoBubbleText) return;
+    versatoBubbleText.textContent = line;
+    versatoBubble.hidden = false;
+    versatoBubble.classList.remove("bubble-pop");
+    void versatoBubble.offsetWidth;
+    versatoBubble.classList.add("bubble-pop");
+    if (state.versatoTimer) clearTimeout(state.versatoTimer);
+    state.versatoTimer = setTimeout(() => {
+      versatoBubble.hidden = true;
+      state.versatoTimer = null;
+    }, 5500);
+    if (btnVersato) {
+      btnVersato.classList.remove("is-talking");
+      void btnVersato.offsetWidth;
+      btnVersato.classList.add("is-talking");
+    }
+  }
+
+  function versatoSpeak(e) {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    let line = VERSATO_LINES[Math.floor(Math.random() * VERSATO_LINES.length)];
+    if (VERSATO_LINES.length > 1 && line === state.lastVersatoLine) {
+      line = VERSATO_LINES[Math.floor(Math.random() * VERSATO_LINES.length)];
+    }
+    state.lastVersatoLine = line;
+    showVersatoLine(line);
+  }
+
   function updateChrome() {
     const rogue = state.mode === "rogue";
     hud.hidden = !rogue || !state.run;
@@ -288,6 +434,7 @@
       btnHint.hidden = true;
       btnUndo.disabled =
         state.busy || state.history.length === 0 || state.run.undosLeft <= 0;
+      syncBossTimerUi();
     } else {
       const level = LEVELS[state.levelIndex];
       levelLabel.textContent = `Livello ${state.levelIndex + 1}`;
@@ -297,6 +444,7 @@
       btnUndo.disabled = state.busy || state.history.length === 0;
       btnPrev.disabled = state.busy || state.levelIndex === 0;
       btnNext.disabled = state.busy || state.levelIndex >= LEVELS.length - 1;
+      clearBossTimer();
     }
 
     btnRestart.disabled = state.busy;
@@ -353,7 +501,53 @@
 
   function render() {
     rack.replaceChildren();
-    state.bottles.forEach((_, i) => rack.appendChild(renderBottle(i)));
+    rack.classList.remove("rack-boss", "rack-boss-mini", "rack-boss-final");
+
+    const boss = !!(state.puzzleMeta && state.puzzleMeta.isBoss);
+    if (boss) {
+      rack.classList.add("rack-boss");
+      rack.classList.add(
+        state.puzzleMeta.isFinal ? "rack-boss-final" : "rack-boss-mini"
+      );
+      const n = state.bottles.length;
+      // Pyramid: fewer on top row, fuller base — reads as a boss arena
+      let topCount = Math.max(3, Math.ceil(n * 0.4));
+      if (topCount >= n) topCount = Math.max(2, n - 2);
+      const indices = state.bottles.map((_, i) => i);
+      const top = indices.slice(0, topCount);
+      const bottom = indices.slice(topCount);
+
+      function fillRow(row, list) {
+        list.forEach((i) => row.appendChild(renderBottle(i)));
+      }
+
+      if (state.puzzleMeta.isFinal && n >= 9) {
+        const mid = Math.max(3, Math.ceil((n - topCount) / 2));
+        const row1 = document.createElement("div");
+        row1.className = "rack-row";
+        const row2 = document.createElement("div");
+        row2.className = "rack-row";
+        const row3 = document.createElement("div");
+        row3.className = "rack-row";
+        fillRow(row1, indices.slice(0, topCount));
+        fillRow(row2, indices.slice(topCount, topCount + mid));
+        fillRow(row3, indices.slice(topCount + mid));
+        rack.appendChild(row1);
+        rack.appendChild(row2);
+        rack.appendChild(row3);
+      } else {
+        const row1 = document.createElement("div");
+        row1.className = "rack-row";
+        const row2 = document.createElement("div");
+        row2.className = "rack-row";
+        fillRow(row1, top);
+        fillRow(row2, bottom.length ? bottom : []);
+        rack.appendChild(row1);
+        if (bottom.length) rack.appendChild(row2);
+      }
+    } else {
+      state.bottles.forEach((_, i) => rack.appendChild(renderBottle(i)));
+    }
     updateChrome();
   }
 
@@ -375,6 +569,7 @@
     state.mode = "archive";
     state.levelIndex = index;
     state.run = null;
+    clearBossTimer();
     loadPuzzle(level.bottles, level.capacity || 4, { name: level.name });
     try {
       localStorage.setItem(STORAGE_MODE, "archive");
@@ -426,6 +621,13 @@
     state.mode = "rogue";
     loadPuzzle(puzzle.bottles, puzzle.capacity, puzzle);
 
+    if (spec.isBoss) {
+      startBossTimer(bossTimerSeconds(run, spec, run.movesMax));
+    } else {
+      clearBossTimer();
+      syncBossTimerUi();
+    }
+
     const optLabel = estimate.exact ? `ottimo ${estimate.moves}` : `~${estimate.moves}`;
     let rationNote = "";
     if (run._bossRationJustUsed) {
@@ -433,12 +635,12 @@
     }
     if (spec.isFinal) {
       setHint(
-        `Boss · ${run.movesLeft} mosse (${optLabel}+${slack}) · 12 colori.${rationNote}`,
+        `Boss · ${run.movesLeft} mosse · ${formatTime(state.bossTimeLeft)} · 12 colori.${rationNote}`,
         true
       );
     } else if (spec.isBoss) {
       setHint(
-        `Mini-boss · ${run.movesLeft} mosse (${optLabel}+${slack}).${rationNote}`,
+        `Mini-boss · ${run.movesLeft} mosse · ${formatTime(state.bossTimeLeft)}.${rationNote}`,
         true
       );
     } else {
@@ -458,6 +660,7 @@
   }
 
   function showTitle() {
+    clearBossTimer();
     hideOverlays();
     const best = loadBest();
     if (best) {
@@ -494,10 +697,23 @@
 
   function dieFromMoves() {
     if (!state.run) return;
+    clearBossTimer();
     Rogue.onDeath(state.run);
     hideOverlays();
     setHint(
       `Mosse finite — morte #${state.run.deaths}. Piano 1, inventario tenuto.`,
+      true
+    );
+    startFloor();
+  }
+
+  function dieFromTimer() {
+    if (!state.run) return;
+    clearBossTimer();
+    Rogue.onDeath(state.run);
+    hideOverlays();
+    setHint(
+      `Tempo scaduto — morte #${state.run.deaths}. Piano 1, inventario tenuto.`,
       true
     );
     startFloor();
@@ -513,10 +729,15 @@
         state.selected = null;
         state.run.movesLeft = state.run.movesMax;
         state.run.undosLeft = state.run.undosFloorBase;
+        if (state.puzzleMeta && state.puzzleMeta.isBoss) {
+          const spec = Proc.floorSpec(state.run.floor, state.run.totalFloors);
+          startBossTimer(bossTimerSeconds(state.run, spec, state.run.movesMax));
+        }
         setHint("Tappo di scorta consumato — piano rifatto.", true);
         render();
         return;
       }
+      clearBossTimer();
       Rogue.onDeath(state.run);
       hideOverlays();
       setHint(
@@ -683,11 +904,13 @@
   }
 
   function onWin() {
-    rack.querySelectorAll(".bottle").forEach((el, i) => {
-      if (state.bottles[i].length) el.classList.add("celebrate");
+    rack.querySelectorAll(".bottle").forEach((el) => {
+      const i = Number(el.dataset.index);
+      if (state.bottles[i] && state.bottles[i].length) el.classList.add("celebrate");
     });
 
     if (state.mode === "rogue" && state.run) {
+      clearBossTimer();
       Rogue.onFloorCleared(
         state.run,
         state.run.movesLeft,
@@ -908,6 +1131,7 @@
   function endRun(won) {
     const run = state.run;
     if (!run) return;
+    clearBossTimer();
     run.won = won;
     run.alive = won;
     if (won) {
@@ -979,6 +1203,10 @@
 
   if (btnVendorLeave) {
     btnVendorLeave.addEventListener("click", leaveVendor);
+  }
+
+  if (btnVersato) {
+    btnVersato.addEventListener("click", versatoSpeak);
   }
 
   // Delegation: reliable on mobile even if nested spans eat the hit

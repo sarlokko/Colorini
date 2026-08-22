@@ -172,6 +172,170 @@ body {
   min-width: 0;
 }
 
+.brand-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+/* —— Versato mascot (always by the logo) —— */
+.versato-btn {
+  position: relative;
+  flex-shrink: 0;
+  width: 48px;
+  height: 56px;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 14px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: transform 0.22s var(--ease-spring);
+}
+
+.versato-btn:hover {
+  transform: translateY(-2px) rotate(-4deg);
+}
+
+.versato-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.versato-btn.is-talking {
+  animation: versato-bob 0.5s var(--ease-spring);
+}
+
+.versato-icon {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.versato-neck {
+  position: absolute;
+  left: 50%;
+  top: 2px;
+  width: 16px;
+  height: 10px;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.55);
+  border: 2px solid rgba(15, 61, 58, 0.28);
+  border-bottom: none;
+  border-radius: 5px 5px 0 0;
+  z-index: 2;
+}
+
+.versato-body {
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 34px;
+  height: 44px;
+  transform: translateX(-50%);
+  border: 2.5px solid rgba(15, 61, 58, 0.3);
+  border-radius: 8px 8px 12px 12px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.55), transparent 40%);
+  overflow: hidden;
+  box-shadow: 0 4px 10px rgba(15, 61, 58, 0.12);
+}
+
+.versato-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 62%;
+  background: linear-gradient(180deg, #fb923c, #ea580c);
+  animation: versato-slosh 2.6s ease-in-out infinite;
+}
+
+.versato-face {
+  position: absolute;
+  top: 10px;
+  left: 0;
+  right: 0;
+  height: 12px;
+  z-index: 2;
+}
+
+.versato-face::before,
+.versato-face::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #1a3f4a;
+}
+
+.versato-face::before { left: 7px; }
+.versato-face::after { right: 7px; }
+
+.versato-bubble {
+  position: absolute;
+  left: 44px;
+  top: -6px;
+  width: min(210px, 58vw);
+  padding: 0.55rem 0.7rem;
+  background: #fffef8;
+  border: 2px solid #1a3f4a;
+  border-radius: 14px 14px 14px 5px;
+  box-shadow: 3px 4px 0 rgba(26, 63, 74, 0.12);
+  z-index: 40;
+  pointer-events: none;
+  text-align: left;
+}
+
+.versato-bubble::after {
+  content: "";
+  position: absolute;
+  left: -2px;
+  bottom: -8px;
+  width: 12px;
+  height: 12px;
+  background: #fffef8;
+  border-right: 2px solid #1a3f4a;
+  border-bottom: 2px solid #1a3f4a;
+  transform: rotate(45deg);
+}
+
+.versato-bubble-text {
+  font-family: "Nunito", sans-serif;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.35;
+  color: #1a3f4a;
+}
+
+.versato-bubble.bubble-pop {
+  animation: bubble-pop 0.4s var(--ease-spring);
+}
+
+@keyframes versato-bob {
+  0% { transform: translateY(0) rotate(0); }
+  35% { transform: translateY(-5px) rotate(6deg); }
+  100% { transform: translateY(0) rotate(0); }
+}
+
+@keyframes versato-slosh {
+  0%, 100% { height: 58%; }
+  50% { height: 66%; }
+}
+
 .brand-name {
   margin: 0;
   font-family: "Baloo 2", "Nunito", sans-serif;
@@ -317,6 +481,163 @@ body {
   padding: 1.5rem 0.75rem 2rem;
   width: 100%;
   min-height: 240px;
+  transition: background 0.35s ease, box-shadow 0.35s ease, border-color 0.35s ease;
+}
+
+/* Boss arena — unmistakable vs normal floors */
+.boss-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  margin: 0.35rem auto 0;
+  max-width: 720px;
+  width: calc(100% - 1.5rem);
+  padding: 0.45rem 0.85rem;
+  border-radius: 14px;
+  background: linear-gradient(110deg, #7f1d1d 0%, #b91c1c 45%, #c2410c 100%);
+  color: #fff7ed;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  box-shadow: 0 8px 22px rgba(127, 29, 29, 0.35);
+  animation: boss-banner-in 0.55s var(--ease-spring);
+}
+
+.boss-banner[hidden] {
+  display: none;
+}
+
+.boss-banner.is-final {
+  background: linear-gradient(110deg, #4c0519 0%, #9f1239 40%, #b45309 100%);
+}
+
+.boss-banner-mark {
+  font-size: 1.1rem;
+  animation: boss-mark-pulse 1.4s ease infinite;
+}
+
+.boss-banner-label {
+  font-size: 0.9rem;
+  text-transform: uppercase;
+}
+
+.boss-banner-timer {
+  margin-left: 0.35rem;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.05rem;
+  padding: 0.12rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.boss-banner-timer.is-low {
+  background: #fbbf24;
+  color: #7c2d12;
+}
+
+.boss-banner-timer.is-critical {
+  background: #fff;
+  color: #be123c;
+  animation: moves-pulse 0.7s ease infinite;
+}
+
+@keyframes boss-banner-in {
+  0% { opacity: 0; transform: translateY(-10px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes boss-mark-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+.rack.rack-boss {
+  flex-direction: column;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1.35rem 0.85rem 1.75rem;
+  margin: 0.35rem 0.5rem 0;
+  width: calc(100% - 1rem);
+  max-width: 680px;
+  border-radius: 22px;
+  border: 2px solid rgba(185, 28, 28, 0.45);
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(254, 202, 202, 0.55), transparent 55%),
+    linear-gradient(180deg, rgba(255, 247, 237, 0.75), rgba(254, 226, 226, 0.55));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.5),
+    0 12px 28px rgba(127, 29, 29, 0.18);
+}
+
+.rack.rack-boss-final {
+  border-color: rgba(157, 23, 77, 0.55);
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(251, 113, 133, 0.35), transparent 50%),
+    linear-gradient(180deg, rgba(255, 241, 242, 0.85), rgba(255, 228, 230, 0.65));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.45),
+    0 14px 32px rgba(136, 19, 55, 0.22);
+}
+
+.rack-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 0.75rem 0.9rem;
+  width: 100%;
+}
+
+.rack.rack-boss .rack-row:first-child {
+  transform: translateY(4px);
+}
+
+.rack.rack-boss .rack-row:last-child:not(:only-child) {
+  padding-top: 0.15rem;
+}
+
+.rack.rack-boss .bottle {
+  filter: drop-shadow(0 4px 0 rgba(127, 29, 29, 0.08));
+}
+
+.rack.rack-boss-final .bottle:nth-child(odd) {
+  transform: translateY(-6px);
+}
+
+.rack.rack-boss-final .bottle.selected {
+  transform: translateY(-18px);
+}
+
+body.boss-active .atmosphere .blob-a {
+  background: rgba(248, 113, 113, 0.35);
+}
+
+body.boss-active .atmosphere .blob-b {
+  background: rgba(251, 146, 60, 0.3);
+}
+
+.hud-stat.hud-timer {
+  font-variant-numeric: tabular-nums;
+  border-color: rgba(185, 28, 28, 0.35);
+  background: rgba(254, 226, 226, 0.92);
+  color: #9f1239;
+}
+
+.hud-stat.hud-timer.is-low {
+  background: rgba(254, 243, 199, 0.95);
+  color: #92400e;
+  border-color: rgba(245, 158, 11, 0.45);
+}
+
+.hud-stat.hud-timer.is-critical {
+  color: #fff;
+  background: linear-gradient(145deg, #e11d48, #9f1239);
+  border-color: transparent;
+  animation: moves-pulse 0.9s ease infinite;
+}
+
+.hud-stat.hud-timer[hidden] {
+  display: none;
 }
 
 .bottle {
