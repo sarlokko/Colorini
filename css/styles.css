@@ -162,6 +162,9 @@ body {
   max-width: 720px;
   width: 100%;
   margin: 0 auto;
+  position: relative;
+  z-index: 50;
+  overflow: visible;
 }
 
 .brand {
@@ -177,6 +180,8 @@ body {
   align-items: center;
   gap: 0.55rem;
   min-width: 0;
+  position: relative;
+  overflow: visible;
 }
 
 .brand-text {
@@ -185,6 +190,8 @@ body {
   align-items: flex-start;
   gap: 0.1rem;
   min-width: 0;
+  position: relative;
+  z-index: 1;
 }
 
 /* —— Versato mascot (always by the logo) —— */
@@ -202,6 +209,7 @@ body {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   transition: transform 0.22s var(--ease-spring);
+  z-index: 30;
 }
 
 .versato-btn:hover {
